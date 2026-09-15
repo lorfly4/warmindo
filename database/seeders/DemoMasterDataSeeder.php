@@ -1,0 +1,142 @@
+<?php
+
+namespace Database\Seeders;
+
+use App\Models\Area;
+use App\Models\Category;
+use App\Models\DiningTable;
+use App\Models\Discount;
+use App\Models\PaymentMethod;
+use App\Models\Product;
+use App\Models\Room;
+use App\Services\WeeklyPromoService;
+use App\Support\DemoProductImages;
+use Illuminate\Database\Seeder;
+use Illuminate\Support\Str;
+
+/**
+ * Optional demo master data. MUST NOT run in production (PRD §19).
+ */
+class DemoMasterDataSeeder extends Seeder
+{
+    public function run(): void
+    {
+        if (app()->environment('production')) {
+            $this->command?->warn('Demo master data skipped in production.');
+
+            return;
+        }
+
+        $categories = [
+            ['name' => 'Makanan Utama', 'slug' => 'makanan-utama', 'sort_order' => 1],
+            ['name' => 'Minuman', 'slug' => 'minuman', 'sort_order' => 2],
+            ['name' => 'Dessert', 'slug' => 'dessert', 'sort_order' => 3],
+        ];
+
+        foreach ($categories as $category) {
+            Category::firstOrCreate(['slug' => $category['slug']], $category + ['is_active' => true]);
+        }
+
+        $products = [
+            ['Nasi Goreng', 'NASGOR', 25000, 28000, 'Makanan Utama', true],
+            ['Ayam Bakar', 'AYAM', 30000, 35000, 'Makanan Utama', true],
+            ['Sate Ayam', 'SATE', 22000, 25000, 'Makanan Utama', true],
+            ['Es Teh Manis', 'ESTEH', 5000, 7000, 'Minuman', true],
+            ['Es Jeruk', 'ESJER', 6000, 8000, 'Minuman', true],
+            ['Kopi Susu', 'KOPISUSU', 12000, 15000, 'Minuman', true],
+            ['Pisang Goreng', 'PISGOR', 10000, 12000, 'Dessert', true],
+            ['Es Krim', 'ESKRIM', 15000, 18000, 'Dessert', true],
+        ];
+
+        foreach ($products as [$name, $sku, $cost, $price, $categoryName, $isKitchen]) {
+            $category = Category::where('slug', 'makanan-utama')->first();
+            if ($categoryName === 'Minuman') {
+                $category = Category::where('slug', 'minuman')->first();
+            } elseif ($categoryName === 'Dessert') {
+                $category = Category::where('slug', 'dessert')->first();
+            }
+
+            $product = Product::updateOrCreate(
+                ['sku' => $sku],
+                [
+                    'category_id' => $category->id,
+                    'name' => $name,
+                    'slug' => Str::slug($name),
+                    'cost_price' => $cost,
+                    'sale_price' => $price,
+                    'stock_type' => 'unlimited',
+                    'stock' => 100,
+                    'is_active' => true,
+                    'is_available' => true,
+                    'is_kitchen' => $isKitchen,
+                ]
+            );
+
+            app(DemoProductImages::class)->ensure($product);
+        }
+
+        $area = Area::updateOrCreate(
+            ['slug' => 'restoran-utama'],
+            [
+                'name' => 'Restoran Utama',
+                'type' => 'restaurant',
+                'description' => 'Area dining utama dengan suasana hijau dan nyaman',
+                'address' => 'https://www.google.com/maps/search/?api=1&query=-6.9043,107.6181',
+                'latitude' => -6.9043,
+                'longitude' => 107.6181,
+                'open_time' => '11:00',
+                'close_time' => '22:00',
+                'is_active' => true,
+            ]
+        );
+
+        for ($i = 1; $i <= 12; $i++) {
+            DiningTable::firstOrCreate(
+                ['table_number' => "T$i"],
+                ['area_id' => $area->id, 'name' => "Meja $i", 'status' => 'available', 'is_active' => true]
+            );
+        }
+
+        $villaArea = Area::updateOrCreate(
+            ['slug' => 'villa'],
+            [
+                'name' => 'Villa',
+                'type' => 'villa',
+                'description' => 'Kamar villa eksklusif untuk santap di dalam kamar',
+                'address' => 'https://www.google.com/maps/search/?api=1&query=-6.8082,107.6219',
+                'latitude' => -6.8082,
+                'longitude' => 107.6219,
+                'open_time' => '07:00',
+                'close_time' => '23:00',
+                'is_active' => true,
+            ]
+        );
+
+        for ($i = 1; $i <= 6; $i++) {
+            Room::firstOrCreate(
+                ['room_number' => "V$i"],
+                ['area_id' => $villaArea->id, 'name' => "Villa $i", 'status' => 'available', 'is_active' => true]
+            );
+        }
+
+        PaymentMethod::firstOrCreate(['code' => 'cash'], ['name' => 'Tunai', 'type' => 'cash', 'is_active' => true, 'sort_order' => 1]);
+        PaymentMethod::updateOrCreate(['code' => 'qris'], ['name' => 'QRIS', 'type' => 'online', 'is_active' => true, 'sort_order' => 2, 'config' => ['provider' => 'qris']]);
+        PaymentMethod::firstOrCreate(['code' => 'debit_card'], ['name' => 'Kartu Debit', 'type' => 'online', 'is_active' => true, 'sort_order' => 3, 'config' => ['provider' => 'mock']]);
+
+        Discount::firstOrCreate(
+            ['code' => 'GRATIS10'],
+            [
+                'name' => 'Diskon 10%',
+                'type' => 'percentage',
+                'value' => 10,
+                'min_amount' => 50000,
+                'is_automatic' => false,
+                'starts_at' => now()->subDay(),
+                'ends_at' => now()->addYear(),
+                'is_active' => true,
+            ]
+        );
+
+        app(WeeklyPromoService::class)->ensureCurrent();
+    }
+}
