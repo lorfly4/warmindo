@@ -35,7 +35,7 @@
                 <input id="image" type="file" name="image" accept="image/*" class="input">
                 @if ($discount->image)
                     <div class="mt-2 flex items-center gap-2">
-                        <img src="{{ asset('storage/'.$discount->image) }}" alt="{{ $discount->name }}" class="h-12 w-20 rounded-md border border-gray-200 object-cover">
+                        <img src="{{ route('media.show', ['path' => $discount->image]) }}" alt="{{ $discount->name }}" class="h-12 w-20 rounded-md border border-gray-200 object-cover">
                         <span class="text-xs text-gray-400">Kosongkan untuk mempertahankan gambar saat ini.</span>
                     </div>
                 @endif

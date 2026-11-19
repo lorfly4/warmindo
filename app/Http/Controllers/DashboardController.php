@@ -2,24 +2,22 @@
 
 namespace App\Http\Controllers;
 
+use Illuminate\Http\RedirectResponse;
+
 class DashboardController extends Controller
 {
-    public function __invoke()
+    public function __invoke(): RedirectResponse
     {
         $user = auth()->user();
 
-        if ($user->hasAnyRole(['admin', 'manager'])) {
-            return redirect()->route('admin.dashboard');
-        }
-
-        if ($user->hasRole('kitchen')) {
-            return redirect()->route('kitchen.dashboard');
-        }
-
-        if ($user->can('payment.confirm_cash')) {
+        if ($user->can('order.view')) {
             return redirect()->route('cashier.dashboard');
         }
 
-        return redirect()->route('home');
+        if ($user->can('inventory.view')) {
+            return redirect()->route('admin.inventory.index');
+        }
+
+        abort(403);
     }
 }

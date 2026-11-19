@@ -14,14 +14,14 @@
 
         <div class="grid gap-4 sm:grid-cols-2">
             <div>
-                <label for="product_id" class="label">Produk</label>
-                <select name="product_id" id="product_id" class="select @error('product_id') border-red-400 @enderror" required>
-                    <option value="">Pilih produk...</option>
-                    @foreach ($products as $product)
-                        <option value="{{ $product->id }}" @selected(old('product_id') == $product->id)>{{ $product->name }} ({{ $product->sku }})</option>
+                <label for="ingredient_id" class="label">Bahan Baku</label>
+                <select name="ingredient_id" id="ingredient_id" class="select @error('ingredient_id') border-red-400 @enderror" required>
+                    <option value="">Pilih bahan baku...</option>
+                    @foreach ($ingredients as $ingredient)
+                        <option value="{{ $ingredient->id }}" @selected(old('ingredient_id') == $ingredient->id)>{{ $ingredient->name }}{{ $ingredient->sku ? ' ('.$ingredient->sku.')' : '' }}</option>
                     @endforeach
                 </select>
-                @error('product_id')
+                @error('ingredient_id')
                     <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
                 @enderror
             </div>
@@ -43,6 +43,18 @@
                 <label for="quantity" class="label">Jumlah</label>
                 <input type="number" name="quantity" id="quantity" min="1" value="{{ old('quantity', 1) }}" class="input @error('quantity') border-red-400 @enderror" required>
                 @error('quantity')
+                    <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
+                @enderror
+            </div>
+
+            <div>
+                <label for="unit" class="label">Satuan</label>
+                <select name="unit" id="unit" class="select @error('unit') border-red-400 @enderror" required>
+                    @foreach (['pcs', 'kg', 'g', 'ml', 'L'] as $unit)
+                        <option value="{{ $unit }}" @selected(old('unit', 'pcs') === $unit)>{{ $unit }}</option>
+                    @endforeach
+                </select>
+                @error('unit')
                     <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
                 @enderror
             </div>

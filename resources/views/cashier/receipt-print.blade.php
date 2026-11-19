@@ -8,26 +8,55 @@
         window.addEventListener('DOMContentLoaded', () => setTimeout(() => window.print(), 250));
     </script>
     <style>
-        @page { size: 80mm auto; margin: 6mm 4mm; }
+        /* Kertas thermal 58mm. Lebar area cetak = 58mm - 2 x 4mm = 50mm */
+        @page { size: 58mm auto; margin: 6mm 4mm; }
+
+        :root { --content: 50mm; }
+
         * { box-sizing: border-box; }
+
+        html, body { margin: 0; padding: 0; }
+
         body {
-            font-family: 'Courier New', monospace;
-            font-size: 12px;
-            font-weight: 700;
+            font-family: 'Courier New', Courier, monospace;
+            /* Ukuran huruf dihitung agar muat tepat 32 karakter per baris di 50mm
+               (huruf monospace lebarnya 0.6em => 50mm / (32 x 0.6) ), sama seperti
+               printer thermal 58mm pada foto. */
+            font-size: calc(var(--content) / 19.2);
+            line-height: 1.4;
+            font-weight: 400; /* ubah ke 700 jika hasil cetak terlalu tipis */
             color: #000;
-            margin: 0;
+            width: 100%;
+            max-width: var(--content);
         }
+
+        p { margin: 0; }
+
         .center { text-align: center; }
-        .break { border-top: 1px dashed #000; margin: 6px 0; }
-        .row { display: flex; justify-content: space-between; gap: 8px; }
-        .row > *:first-child { white-space: pre-wrap; flex: 1; }
-        .row > *:last-child { text-align: right; white-space: nowrap; }
-        .line-item { display: flex; justify-content: space-between; gap: 8px; }
-        .line-item .name { flex: 1; whi q qte-space: pre-wrap; }
-        .line-item .amount { text-align: right; white-space: nowrap; }
-        h1 { font-size: 15px; margin: 0 0 2px; }
-        .note { font-size: 10px; }
-        .sub { font-size: 10px; }
+        .wrap { overflow-wrap: anywhere; }
+
+        /* Garis putus-putus setinggi satu baris teks */
+        .break {
+            border-top: 1px dashed #000;
+            margin: 0.6em 0;
+        }
+
+        /* Baris label (kiri) - nilai (kanan) */
+        .row {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 1ch;
+        }
+        .row > :first-child { flex: 0 0 auto; white-space: nowrap; }
+        .row > :last-child { text-align: right; overflow-wrap: anywhere; }
+
+        /* Item: nama di baris sendiri, lalu "qty | harga satuan | subtotal" */
+        .item-line {
+            display: grid;
+            grid-template-columns: 6ch 13ch 1fr;
+        }
+        .item-line > :nth-child(n+2) { text-align: right; white-space: nowrap; }
     </style>
 </head>
 <body>
@@ -42,54 +71,91 @@
         $totalPaid = $order->payments()->where('status', \App\Models\Payment::STATUS_PAID)->sum('amount');
         $change = max(0, $totalPaid - $order->grand_total);
         $typeLabels = ['dine_in' => 'Dine In', 'take_away' => 'Take Away', 'room_service' => 'Room Service'];
+        $money = fn ($n) => number_format((float) $n, 0, ',', '.');
+
+        // Kode pendek (seperti "Kode 1133" pada foto) diambil dari 4 digit terakhir nomor pesanan.
+        $shortCode = substr(preg_replace('/\D/', '', (string) $order->order_number), -4);
+        $orderedAt = $order->ordered_at?->locale('id')->translatedFormat('H:i, j M');
+        $statusLabel = $order->payment_status === \App\Models\Order::PAYMENT_PAID
+            ? 'LUNAS'
+            : strtoupper($order->payment_status);
     @endphp
 
-    <div class="center">
-        <h1>{{ $business['name'] }}</h1>
-        @if ($business['address']) <p class="sub" style="margin:0">{{ $business['address'] }}</p> @endif
-        @if ($business['phone']) <p class="sub" style="margin:0">Telp: {{ $business['phone'] }}</p> @endif
+    {{-- Header --}}
+    <div class="center wrap">
+        <p>{{ $business['name'] }}</p>
+        @if ($business['address']) <p>{{ $business['address'] }}</p> @endif
+        @if ($business['phone']) <p>Telp: {{ $business['phone'] }}</p> @endif
     </div>
 
-    <p>{{ $order->order_number }}</p>
-    <p>{{ $order->ordered_at?->format('d/m/Y H:i') }}</p>
-    <p>{{ $typeLabels[$order->order_type] ?? $order->order_type }}@if ($order->area) · {{ $order->area->name }} · {{ $order->locationLabel() }}@endif</p>
-    @if ($order->customer_name) <p>Atas nama: {{ $order->customer_name }}</p> @endif
+    <div class="break"></div>
+
+    {{-- Info pesanan --}}
+    <div class="row"><span>No. pesanan</span><span>{{ $order->order_number }}</span></div>
+    @if ($shortCode !== '')
+        <div class="row"><span>Kode</span><span>{{ $shortCode }}</span></div>
+    @endif
+    @if ($orderedAt)
+        <div class="row"><span>Waktu</span><span>{{ $orderedAt }}</span></div>
+    @endif
+    @if ($order->customer_name)
+        <div class="row"><span>Pelanggan</span><span>{{ $order->customer_name }}</span></div>
+    @endif
+    @if ($order->area)
+        <div class="row"><span>Lokasi</span><span>{{ $order->area->name }} · {{ $order->locationLabel() }}</span></div>
+    @endif
 
     <div class="break"></div>
 
+    {{-- Daftar item --}}
     @foreach ($order->items as $item)
-        <div class="line-item">
-            <span class="name">{{ $item->quantity }}x {{ $item->product_name }}</span>
-            <span class="amount">{{ number_format($item->subtotal, 0, ',', '.') }}</span>
+        <div class="wrap">{{ $item->product_name }}</div>
+        <div class="item-line">
+            <span>{{ $item->quantity }}x</span>
+            <span>{{ $money($item->subtotal / max(1, (int) $item->quantity)) }}</span>
+            <span>{{ $money($item->subtotal) }}</span>
         </div>
-        @if ($item->notes) <p class="note" style="margin:0 0 2px 8px">Catatan: {{ $item->notes }}</p> @endif
+        @if ($item->notes)
+            <div class="wrap">Catatan: {{ $item->notes }}</div>
+        @endif
+        <div class="break"></div>
     @endforeach
 
-    <div class="break"></div>
-
-    <div class="row"><span>Subtotal</span><span>{{ number_format($order->subtotal, 0, ',', '.') }}</span></div>
+    {{-- Ringkasan --}}
+    @if ($order->discount_amount > 0 || $order->tax_amount > 0 || $order->service_charge_amount > 0)
+        <div class="row"><span>Subtotal</span><span>{{ $money($order->subtotal) }}</span></div>
+    @endif
     @if ($order->discount_amount > 0)
-        <div class="row"><span>Diskon</span><span>-{{ number_format($order->discount_amount, 0, ',', '.') }}</span></div>
+        <div class="row"><span>Diskon</span><span>-{{ $money($order->discount_amount) }}</span></div>
     @endif
     @if ($order->tax_amount > 0)
-        <div class="row"><span>Pajak</span><span>{{ number_format($order->tax_amount, 0, ',', '.') }}</span></div>
+        <div class="row"><span>Pajak</span><span>{{ $money($order->tax_amount) }}</span></div>
     @endif
     @if ($order->service_charge_amount > 0)
-        <div class="row"><span>SC</span><span>{{ number_format($order->service_charge_amount, 0, ',', '.') }}</span></div>
+        <div class="row"><span>SC</span><span>{{ $money($order->service_charge_amount) }}</span></div>
     @endif
-    <div class="row" style="font-weight:bold"><span>TOTAL</span><span>{{ number_format($order->grand_total, 0, ',', '.') }}</span></div>
-    <div class="row"><span>Dibayar</span><span>{{ number_format($totalPaid, 0, ',', '.') }}</span></div>
+    <div class="row"><span>Total</span><span>{{ $money($order->grand_total) }}</span></div>
+    <div class="row"><span>Dibayar</span><span>{{ $money($totalPaid) }}</span></div>
     @if ($change > 0)
-        <div class="row"><span>Kembalian</span><span>{{ number_format($change, 0, ',', '.') }}</span></div>
+        <div class="row"><span>Kembalian</span><span>{{ $money($change) }}</span></div>
     @endif
-    <p>Status: {{ $order->payment_status === \App\Models\Order::PAYMENT_PAID ? 'LUNAS' : strtoupper($order->payment_status) }}</p>
-
-    @foreach ($order->payments as $payment)
-        <p class="sub" style="margin:2px 0">{{ $payment->paymentMethod?->name }} {{ $payment->reference ?? '' }} {{ $payment->paid_at?->format('d/m/Y H:i') }}</p>
-    @endforeach
-    @if ($order->creator) <p class="sub" style="margin:2px 0">Kasir: {{ $order->creator->name }}</p> @endif
 
     <div class="break"></div>
-    <div class="center note">{{ $footer }}</div>
+
+    {{-- Pembayaran & tipe pesanan --}}
+    @foreach ($order->payments as $payment)
+        <div class="row"><span>Pembayaran</span><span>{{ $payment->paymentMethod?->name }}</span></div>
+        @if ($payment->reference)
+            <div class="row"><span>Ref</span><span>{{ $payment->reference }}</span></div>
+        @endif
+    @endforeach
+    <div class="row"><span>Tipe Pesanan</span><span>{{ $typeLabels[$order->order_type] ?? $order->order_type }}</span></div>
+    <div class="row"><span>Status</span><span>{{ $statusLabel }}</span></div>
+    @if ($order->creator)
+        <div class="row"><span>Kasir</span><span>{{ $order->creator->name }}</span></div>
+    @endif
+
+    <div class="break"></div>
+    <div class="center wrap">{{ $footer }}</div>
 </body>
 </html>

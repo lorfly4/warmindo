@@ -25,6 +25,16 @@ class OrderTrackingController extends Controller
         return view('customer.tracking', compact('order', 'latestPendingPayment'));
     }
 
+    public function history(): View
+    {
+        $orderIds = array_values(array_unique((array) session('tracking.orders', [])));
+        $orders = $orderIds === []
+            ? collect()
+            : Order::query()->whereKey($orderIds)->orderByDesc('ordered_at')->get();
+
+        return view('customer.history', compact('orders'));
+    }
+
     public function cancel(Request $request, Order $order, OrderStatusService $status, AuditLogger $audit): RedirectResponse
     {
         $validated = $request->validate(['reason' => 'required|string|max:255']);

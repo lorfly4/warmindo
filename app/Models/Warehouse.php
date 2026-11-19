@@ -26,6 +26,13 @@ class Warehouse extends Model
         return $this->hasMany(InventoryItem::class);
     }
 
+    public function ingredients()
+    {
+        return $this->belongsToMany(Ingredient::class, 'inventory_items')
+            ->withPivot(['quantity', 'unit', 'min_threshold', 'max_capacity'])
+            ->withTimestamps();
+    }
+
     public function movements()
     {
         return $this->hasMany(InventoryMovement::class);

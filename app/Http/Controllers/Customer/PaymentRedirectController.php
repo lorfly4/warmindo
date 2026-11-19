@@ -9,6 +9,7 @@ use App\Services\PaymentService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 use RuntimeException;
@@ -17,13 +18,10 @@ class PaymentRedirectController extends Controller
 {
     public function __construct(protected PaymentService $payments) {}
 
-    public function show(Payment $payment): View
+    public function show(Payment $payment): View|RedirectResponse
     {
         if (! in_array($payment->status, [Payment::STATUS_PENDING, Payment::STATUS_FAILED], true)) {
-            return view('customer.payment-result', [
-                'payment' => $payment,
-                'order' => $payment->order,
-            ]);
+            return redirect()->route('cashier.orders.show', $payment->order);
         }
 
         $payment->load('paymentMethod');
@@ -32,21 +30,19 @@ class PaymentRedirectController extends Controller
         return view('customer.payment-mock', compact('payment', 'order'));
     }
 
-    public function qrisShow(Payment $payment): View
+    public function qrisShow(Payment $payment): View|RedirectResponse
     {
         if ($payment->status !== Payment::STATUS_PENDING) {
-            return view('customer.payment-result', [
-                'payment' => $payment,
-                'order' => $payment->order,
-            ]);
+            return redirect()->route('cashier.orders.show', $payment->order);
         }
 
         $payment->load('paymentMethod');
         $order = $payment->order;
 
         $imagePath = $payment->paymentMethod?->config['image_path'] ?? 'qriss.jpeg';
+        $imageExists = Storage::disk('public')->exists($imagePath);
 
-        return view('customer.payment-qris', compact('payment', 'order', 'imagePath'));
+        return view('customer.payment-qris', compact('payment', 'order', 'imagePath', 'imageExists'));
     }
 
     public function process(Request $request, Payment $payment): RedirectResponse
@@ -56,7 +52,7 @@ class PaymentRedirectController extends Controller
         ]);
 
         if (! in_array($payment->status, [Payment::STATUS_PENDING, Payment::STATUS_FAILED], true)) {
-            return redirect()->route('tracking.show', $payment->order)->with('error', 'Pembayaran sudah selesai.');
+            return redirect()->route('cashier.orders.show', $payment->order)->with('error', 'Pembayaran sudah selesai.');
         }
 
         // Simulate the gateway provider's async state.
@@ -68,15 +64,15 @@ class PaymentRedirectController extends Controller
             try {
                 $this->simulateWebhook($payment, $data['outcome']);
             } catch (RuntimeException $e) {
-                return redirect()->route('tracking.show', $payment->order)->with('error', 'Simulasi pembayaran gagal: '.$e->getMessage());
+                return redirect()->route('cashier.orders.show', $payment->order)->with('error', 'Simulasi pembayaran gagal: '.$e->getMessage());
             }
         }
 
         if ($data['outcome'] === 'paid') {
-            return redirect()->route('tracking.show', $payment->order)->with('success', 'Pembayaran berhasil.');
+            return redirect()->route('cashier.orders.show', $payment->order)->with('success', 'Pembayaran berhasil.');
         }
 
-        return redirect()->route('tracking.show', $payment->order)
+        return redirect()->route('cashier.orders.show', $payment->order)
             ->with($data['outcome'] === 'failed' ? 'error' : 'info', $this->message($data['outcome']));
     }
 

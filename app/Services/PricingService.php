@@ -17,7 +17,7 @@ class PricingService
      *
      * @param  Collection<int, array{product_id: int, product_name: string, price: float, quantity: int}>  $items
      */
-    public function calculate(Collection $items, float $subtotal, ?string $code = null): array
+    public function calculate(Collection $items, float $subtotal, ?string $code = null, float $minimumDiscount = 0): array
     {
         [$autoDiscount, $autoAmount] = $this->discountService->bestAutoDiscount($items, $subtotal);
 
@@ -31,12 +31,12 @@ class PricingService
         [$discount, $discountAmount] = $codeAmount > $autoAmount
             ? [$codeDiscount, $codeAmount]
             : [$autoDiscount, $autoAmount];
+        $discountAmount = min($subtotal, max($discountAmount, $minimumDiscount));
 
-        $taxRate = (float) $this->settings->get('pricing.tax_rate', 0);
         $serviceRate = (float) $this->settings->get('pricing.service_charge_rate', 0);
 
         $taxableBase = max(0.0, $subtotal - $discountAmount);
-        $taxAmount = round($taxableBase * ($taxRate / 100), 2);
+        $taxAmount = 0.0;
         $serviceAmount = round($taxableBase * ($serviceRate / 100), 2);
         $grandTotal = round($taxableBase + $taxAmount + $serviceAmount, 2);
 

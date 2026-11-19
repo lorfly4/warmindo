@@ -57,7 +57,7 @@
                     <article class="card group overflow-hidden transition duration-200 hover:-translate-y-0.5 hover:shadow-lg">
                         <div class="media-frame relative aspect-[4/3] rounded-none border-0">
                             @if ($product->image)
-                                <img src="{{ asset('storage/'.$product->image) }}" alt="{{ $product->name }}" loading="lazy" class="h-full w-full object-cover transition duration-300 group-hover:scale-105">
+                                <img src="{{ route('media.show', ['path' => $product->image]) }}" alt="{{ $product->name }}" loading="lazy" class="h-full w-full object-cover transition duration-300 group-hover:scale-105">
                             @else
                                 <div class="flex h-full w-full items-center justify-center bg-cream-200 text-ink-300">
                                     <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>

@@ -95,6 +95,41 @@ class MenuController extends Controller
         return view('customer.menu', $this->viewData($categories, $products));
     }
 
+    public function order(Request $request): View
+    {
+        $this->handleLocationToken($request);
+
+        $groups = Category::with(['products' => fn ($q) => $q->visible()->orderBy('sort_order')->orderBy('name')])
+            ->whereHas('products', fn ($q) => $q->visible())
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get()
+            ->map(fn (Category $category) => [
+                'name' => $category->name,
+                'products' => $category->products,
+            ]);
+
+        $uncategorized = Product::query()
+            ->visible()
+            ->whereNull('category_id')
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get();
+
+        if ($uncategorized->isNotEmpty()) {
+            $groups->push(['name' => 'Menu Lainnya', 'products' => $uncategorized]);
+        }
+
+        return view('customer.order', [
+            'groups' => $groups,
+            'cartCount' => $this->cart->count(),
+            'cartQuantities' => $this->cart->all()->pluck('quantity', 'product_id')->toArray(),
+            'drawerLines' => $this->cart->lines(),
+            'drawerSubtotal' => $this->cart->subtotal(),
+            'weeklyPromo' => $this->weeklyPromo(),
+        ]);
+    }
+
     public function show(Product $product): View
     {
         if (! $product->is_active || ! $product->is_available) {

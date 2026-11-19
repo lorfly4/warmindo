@@ -54,15 +54,13 @@
                 @endif
             @endif
 
-            @if ($zone === 'ready')
-                @if ($order->payment_status === \App\Models\Order::PAYMENT_PAID)
-                    <form method="POST" action="{{ route('cashier.orders.complete', $order) }}">
-                        @csrf
-                        <button type="submit" class="btn btn-success btn-sm">Selesaikan</button>
-                    </form>
-                @else
-                    <a href="{{ route('cashier.orders.show', $order) }}" class="btn btn-primary btn-sm">Bayar</a>
-                @endif
+            @if ($order->payment_status === \App\Models\Order::PAYMENT_PAID)
+                <form method="POST" action="{{ route('cashier.orders.complete', $order) }}">
+                    @csrf
+                    <button type="submit" class="btn btn-success btn-sm">Selesaikan</button>
+                </form>
+            @elseif ($zone === 'ready')
+                <a href="{{ route('cashier.orders.show', $order) }}" class="btn btn-primary btn-sm">Bayar</a>
             @endif
 
 @if (in_array($zone, ['new', 'active', 'ready'], true))

@@ -51,6 +51,11 @@ class CheckoutController extends Controller
 
         session()->forget('checkout.key');
         session()->forget('cart.discount_code');
+        session(['tracking.order' => $order->order_number]);
+        session(['tracking.orders' => array_slice(array_values(array_unique(array_merge(
+            (array) session('tracking.orders', []),
+            [$order->getKey()],
+        ))), -50)]);
 
         $this->cart->clear();
 
@@ -67,8 +72,6 @@ class CheckoutController extends Controller
                 return redirect()->route('tracking.show', $order)->with('error', 'Gagal memulai pembayaran online: '.$e->getMessage());
             }
         }
-
-        session(['tracking.order' => $order->order_number]);
 
         return redirect()->route('tracking.show', $order)
             ->with('success', "Order {$order->order_number} berhasil dibuat. Silakan lanjut ke pembayaran.");

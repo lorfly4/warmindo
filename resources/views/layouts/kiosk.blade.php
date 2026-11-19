@@ -1,9 +1,8 @@
 @php
-    $siteName = \App\Models\Setting::where('key', 'business.name')->value('value') ?? config('app.name');
     $landingNav = trim($__env->yieldContent('landing-nav')) === '1';
 @endphp
 <!DOCTYPE html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" style="{{ $themeVariables }}">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -23,7 +22,11 @@
              class="mx-auto flex h-20 max-w-[1280px] items-center justify-between gap-4 border-b border-cream-300/70 bg-cream-100/95 px-5 backdrop-blur sm:px-8">
             <a href="{{ route('home') }}" class="flex items-center gap-2.5" aria-label="{{ $siteName }} — Beranda">
                 <span class="flex h-10 w-10 items-center justify-center rounded-full border border-gold-500/50 bg-forest-800 text-gold-300">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.6"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v10m0 0a4 4 0 100 8c2.21 0 4-1.79 4-4M12 14c.5 1 1.5 2.5 3 2.5a2.5 2.5 0 100-5c-1.5 0-2.5 1-3 2.5z"/></svg>
+                    @if ($brandLogo)
+                        <img src="{{ route('media.show', ['path' => $brandLogo]) }}" alt="{{ $siteName }}" class="h-8 w-8 rounded-full object-contain">
+                    @else
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.6"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v10m0 0a4 4 0 100 8c2.21 0 4-1.79 4-4M12 14c0.5 1 1.5 2.5 3 2.5a2.5 2.5 0 100-5c-1.5 0-2.5 1-3 2.5z"/></svg>
+                    @endif
                 </span>
                 <span class="font-display text-lg font-semibold tracking-tight text-ink-900">{{ $siteName }}</span>
             </a>
@@ -39,6 +42,12 @@
             </div>
 
             <div class="flex items-center gap-2">
+                <a href="{{ route('tracking.history') }}"
+                   class="inline-flex h-11 items-center gap-2 rounded-full border border-ink-900/15 bg-cream-50 px-3 text-sm font-medium text-ink-800 shadow-sm transition hover:border-forest-600/40 hover:text-forest-700 sm:px-4"
+                   aria-label="Riwayat Pesanan" title="Riwayat Pesanan">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.7"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l2.5 2.5M20.5 12a8.5 8.5 0 11-2.49-6.01M20.5 4v5h-5"/></svg>
+                    <span class="hidden sm:inline">Riwayat</span>
+                </a>
                 <button type="button"
                         x-data
                         @click="$dispatch('open-cart')"
@@ -64,7 +73,8 @@
         <div id="mobile-menu" x-show="menuOpen" x-cloak x-transition
              class="border-b border-cream-300/70 bg-cream-100/95 backdrop-blur lg:hidden">
             <div class="mx-auto max-w-[1280px] space-y-1 px-5 py-4 sm:px-8">
-                <a href="{{ route('menu.index') }}" @click="menuOpen = false" class="block rounded-lg px-3 py-2.5 text-sm font-medium text-ink-800 hover:bg-cream-200/60">Menu</a>
+                <a href="{{ route('menu.order') }}" @click="menuOpen = false" class="block rounded-lg px-3 py-2.5 text-sm font-medium text-ink-800 hover:bg-cream-200/60">Menu</a>
+                <a href="{{ route('tracking.history') }}" @click="menuOpen = false" class="block rounded-lg px-3 py-2.5 text-sm font-medium text-ink-800 hover:bg-cream-200/60">Riwayat Pesanan</a>
                 @if ($landingNav)
                     <a href="#signature" @click="menuOpen = false" class="block rounded-lg px-3 py-2.5 text-sm font-medium text-ink-800 hover:bg-cream-200/60">Menu Unggulan</a>
                     <a href="#story" @click="menuOpen = false" class="block rounded-lg px-3 py-2.5 text-sm font-medium text-ink-800 hover:bg-cream-200/60">Tentang</a>
@@ -88,7 +98,11 @@
             <div>
                 <a href="{{ route('home') }}" class="flex items-center gap-2.5">
                     <span class="flex h-10 w-10 items-center justify-center rounded-full border border-gold-500/50 bg-forest-800 text-gold-300">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.6"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v10m0 0a4 4 0 100 8c2.21 0 4-1.79 4-4M12 14c.5 1 1.5 2.5 3 2.5a2.5 2.5 0 100-5c-1.5 0-2.5 1-3 2.5z"/></svg>
+                        @if ($brandLogo)
+                            <img src="{{ route('media.show', ['path' => $brandLogo]) }}" alt="{{ $siteName }}" class="h-8 w-8 rounded-full object-contain">
+                        @else
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.6"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v10m0 0a4 4 0 100 8c2.21 0 4-1.79 4-4M12 14c0.5 1 1.5 2.5 3 2.5a2.5 2.5 0 100-5c-1.5 0-2.5 1-3 2.5z"/></svg>
+                        @endif
                     </span>
                     <span class="font-display text-lg font-semibold text-cream-50">{{ $siteName }}</span>
                 </a>

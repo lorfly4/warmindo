@@ -63,6 +63,49 @@ class ReportExportFeatureTest extends TestCase
             ->assertViewHas('cancelledCount', 0);
     }
 
+    public function test_daily_revenue_increases_after_cash_payment_is_confirmed(): void
+    {
+        $order = $this->completedOrder(100000, 0);
+        $order->update([
+            'order_status' => Order::STATUS_READY,
+            'payment_status' => Order::PAYMENT_PENDING,
+            'completed_at' => null,
+        ]);
+        $order->payments()->firstOrFail()->update([
+            'status' => Payment::STATUS_PENDING,
+            'paid_at' => null,
+        ]);
+
+        $this->admin()->get(route('admin.reports.index', [
+            'date_from' => now()->toDateString(),
+            'date_to' => now()->toDateString(),
+        ]))
+            ->assertOk()
+            ->assertViewHas('grossSales', 0.0)
+            ->assertViewHas('dailySales', fn ($dailySales) => $dailySales->isEmpty());
+
+        $method = PaymentMethod::factory()->create(['type' => 'cash', 'is_active' => true]);
+        $this->actAsFresh($this->cashierUser())
+            ->post(route('cashier.orders.pay-cash', $order), [
+                'payment_method_id' => $method->id,
+                'amount_received' => 100000,
+            ])
+            ->assertRedirect(route('cashier.receipt.show', $order));
+
+        $this->admin()->get(route('admin.reports.index', [
+            'date_from' => now()->toDateString(),
+            'date_to' => now()->toDateString(),
+        ]))
+            ->assertOk()
+            ->assertViewHas('grossSales', 100000.0)
+            ->assertViewHas('orderCount', 1)
+            ->assertViewHas('dailySales', fn ($dailySales) => $dailySales->count() === 1
+                && $dailySales->first()->paid_date === now()->toDateString()
+                && (float) $dailySales->first()->revenue === 100000.0
+                && (float) $dailySales->first()->cash_revenue === 100000.0
+                && (float) $dailySales->first()->qris_revenue === 0.0);
+    }
+
     public function test_report_pdf_is_printable(): void
     {
         $this->completedOrder(75000, 0);

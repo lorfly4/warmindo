@@ -55,7 +55,7 @@
                 <label for="image" class="label">Gambar</label>
                 @if ($product->image)
                     <div class="mb-2">
-                        <img src="{{ asset('storage/' . $product->image) }}" alt="{{ $product->name }}" class="h-12 w-12 rounded-lg object-cover">
+                        <img src="{{ route('media.show', ['path' => $product->image]) }}" alt="{{ $product->name }}" class="h-12 w-12 rounded-lg object-cover">
                     </div>
                 @endif
                 <input type="file" name="image" id="image" class="input @error('image') border-red-400 @enderror">
@@ -66,7 +66,7 @@
 
             <div>
                 <label for="cost_price" class="label">Harga Pokok</label>
-                <input type="number" name="cost_price" id="cost_price" value="{{ old('cost_price', $product->cost_price) }}" class="input @error('cost_price') border-red-400 @enderror" min="0">
+                <input type="text" inputmode="numeric" autocomplete="off" data-money name="cost_price" id="cost_price" value="{{ old('cost_price', $product->cost_price) }}" class="input @error('cost_price') border-red-400 @enderror">
                 @error('cost_price')
                     <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
                 @enderror
@@ -74,7 +74,7 @@
 
             <div>
                 <label for="sale_price" class="label">Harga Jual</label>
-                <input type="number" name="sale_price" id="sale_price" value="{{ old('sale_price', $product->sale_price) }}" class="input @error('sale_price') border-red-400 @enderror" min="0" required>
+                <input type="text" inputmode="numeric" autocomplete="off" data-money name="sale_price" id="sale_price" value="{{ old('sale_price', $product->sale_price) }}" class="input @error('sale_price') border-red-400 @enderror" required>
                 @error('sale_price')
                     <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
                 @enderror
@@ -142,4 +142,42 @@
             <a href="{{ route('admin.products.index') }}" class="btn btn-secondary">Batal</a>
         </div>
     </form>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            var format = function (digits) {
+                return digits.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+            };
+
+            document.querySelectorAll('input[data-money]').forEach(function (el) {
+                // Format nilai awal (contoh: "15000.00" -> "15.000")
+                if (el.value !== '' && !isNaN(parseFloat(el.value))) {
+                    el.value = format(String(Math.round(parseFloat(el.value))));
+                }
+
+                el.addEventListener('input', function () {
+                    var pos = el.selectionStart;
+                    var digitsBeforeCaret = el.value.slice(0, pos).replace(/\D/g, '').length;
+                    var formatted = format(el.value.replace(/\D/g, ''));
+                    el.value = formatted;
+
+                    // Kembalikan posisi kursor
+                    var count = 0, newPos = formatted.length;
+                    for (var i = 0; i < formatted.length; i++) {
+                        if (/\d/.test(formatted[i])) count++;
+                        if (count === digitsBeforeCaret) { newPos = i + 1; break; }
+                    }
+                    if (digitsBeforeCaret === 0) newPos = 0;
+                    el.setSelectionRange(newPos, newPos);
+                });
+
+                // Hapus pemisah sebelum dikirim ke server
+                if (el.form) {
+                    el.form.addEventListener('submit', function () {
+                        el.value = el.value.replace(/\D/g, '');
+                    });
+                }
+            });
+        });
+    </script>
 @endsection

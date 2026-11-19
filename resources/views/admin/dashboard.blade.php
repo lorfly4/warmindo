@@ -7,12 +7,12 @@
     @php
         $stats = [
             [
-                'label' => 'Penjualan Bulan Ini',
+                'label' => 'Penjualan Hari Ini',
                 'value' => 'Rp '.number_format($grossSales, 0, ',', '.'),
                 'icon' => 'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1',
                 'iconBg' => 'bg-emerald-100 text-emerald-700',
                 'trend' => $saleTrend,
-                'prev' => 'Bulan lalu: Rp '.number_format($grossSalesPrev, 0, ',', '.'),
+                'prev' => 'Kemarin: Rp '.number_format($grossSalesPrev, 0, ',', '.'),
             ],
             [
                 'label' => 'Order Selesai',
@@ -20,7 +20,7 @@
                 'icon' => 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4',
                 'iconBg' => 'bg-blue-100 text-blue-700',
                 'trend' => $orderTrend,
-                'prev' => 'Bulan lalu: '.number_format($orderCountPrev),
+                'prev' => 'Kemarin: '.number_format($orderCountPrev),
             ],
             [
                 'label' => 'Rata-rata Nilai Order',
@@ -28,7 +28,7 @@
                 'icon' => 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z',
                 'iconBg' => 'bg-brand-100 text-brand-700',
                 'trend' => $avgTrend,
-                'prev' => 'Bulan lalu: Rp '.number_format($avgOrderValuePrev, 0, ',', '.'),
+                'prev' => 'Kemarin: Rp '.number_format($avgOrderValuePrev, 0, ',', '.'),
             ],
             [
                 'label' => 'Produk Menipis',
@@ -61,6 +61,19 @@
         @endforeach
     </div>
 
+    <div class="mt-6 grid gap-4 sm:grid-cols-2">
+        <div class="card p-5">
+            <p class="text-sm font-medium text-gray-500">Total Pendapatan QRIS</p>
+            <p class="mt-2 text-2xl font-bold text-gray-900">Rp {{ number_format($qrisRevenueTotal, 0, ',', '.') }}</p>
+            <p class="mt-1 text-xs text-gray-500">Hari ini: Rp {{ number_format($qrisRevenue, 0, ',', '.') }}</p>
+        </div>
+        <div class="card p-5">
+            <p class="text-sm font-medium text-gray-500">Total Pendapatan Tunai</p>
+            <p class="mt-2 text-2xl font-bold text-gray-900">Rp {{ number_format($cashRevenueTotal, 0, ',', '.') }}</p>
+            <p class="mt-1 text-xs text-gray-500">Hari ini: Rp {{ number_format($cashRevenue, 0, ',', '.') }}</p>
+        </div>
+    </div>
+
     <div class="mt-6 grid gap-6 lg:grid-cols-2">
         <div class="card overflow-hidden">
             <div class="border-b border-gray-200 px-5 py-4">
@@ -68,7 +81,7 @@
             </div>
             <div class="p-5">
                 @if ($statusDistribution->isEmpty())
-                    <p class="text-sm text-gray-500">Belum ada data bulan ini.</p>
+                    <p class="text-sm text-gray-500">Belum ada data hari ini.</p>
                 @else
                     @php
                         $max = max($statusDistribution->values()->all());
@@ -106,7 +119,7 @@
 
         <div class="card overflow-hidden">
             <div class="border-b border-gray-200 px-5 py-4">
-                <h2 class="text-base font-semibold text-gray-900">Produk Terlaris (Bulan Ini)</h2>
+                <h2 class="text-base font-semibold text-gray-900">Produk Terlaris (Hari Ini)</h2>
             </div>
             <div class="p-5">
                 @if ($topProducts->isEmpty())
@@ -135,7 +148,7 @@
     <div class="mt-6 grid gap-6 lg:grid-cols-2">
         <div class="card overflow-hidden">
             <div class="border-b border-gray-200 px-5 py-4">
-                <h2 class="text-base font-semibold text-gray-900">Mix Pembayaran</h2>
+                <h2 class="text-base font-semibold text-gray-900">Mix Pembayaran Hari Ini</h2>
             </div>
             <div class="p-5">
                 @if ($paymentMix->isEmpty())

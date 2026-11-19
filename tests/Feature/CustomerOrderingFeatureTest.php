@@ -251,7 +251,25 @@ class CustomerOrderingFeatureTest extends TestCase
 
         $this->assertNotEmpty($order->order_number);
 
+        $this->assertSame([$order->id], session('tracking.orders'));
+        $this->get(route('tracking.history'))
+            ->assertOk()
+            ->assertSee($order->order_number)
+            ->assertSee(route('tracking.history'));
+
         $this->get(route('tracking.show', $order))->assertOk()->assertSee($order->order_number);
+    }
+
+    public function test_customer_order_history_only_shows_orders_saved_in_the_current_session(): void
+    {
+        $trackedOrder = Order::factory()->takeAway()->create(['order_number' => 'ORD-TRACKED']);
+        Order::factory()->takeAway()->create(['order_number' => 'ORD-OTHER']);
+
+        $this->withSession(['tracking.orders' => [$trackedOrder->id]])
+            ->get(route('tracking.history'))
+            ->assertOk()
+            ->assertSee('ORD-TRACKED')
+            ->assertDontSee('ORD-OTHER');
     }
 
     public function test_brand_new_order_is_pending_and_not_yet_accepted(): void

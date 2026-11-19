@@ -16,25 +16,34 @@ class DashboardController extends Controller
     public function __invoke(Request $request): View
     {
         Gate::authorize('report.view');
-        $monthStart = now()->startOfMonth();
-        $prevMonthStart = now()->subMonthNoOverflow()->startOfMonth();
-        $prevMonthEnd = $monthStart->copy()->subSecond();
+        $todayStart = now()->startOfDay();
+        $tomorrowStart = $todayStart->copy()->addDay();
+        $yesterdayStart = $todayStart->copy()->subDay();
 
-        $grossSales = (float) Order::where('order_status', Order::STATUS_COMPLETED)
-            ->where('completed_at', '>=', $monthStart)
-            ->sum('grand_total');
+        $currentPaidPayments = Payment::query()
+            ->where('status', Payment::STATUS_PAID)
+            ->where('paid_at', '>=', $todayStart)
+            ->where('paid_at', '<', $tomorrowStart);
+        $previousPaidPayments = Payment::query()
+            ->where('status', Payment::STATUS_PAID)
+            ->where('paid_at', '>=', $yesterdayStart)
+            ->where('paid_at', '<', $todayStart);
 
-        $grossSalesPrev = (float) Order::where('order_status', Order::STATUS_COMPLETED)
-            ->whereBetween('completed_at', [$prevMonthStart, $prevMonthEnd])
-            ->sum('grand_total');
+        $grossSales = (float) (clone $currentPaidPayments)->sum('amount');
+        $grossSalesPrev = (float) (clone $previousPaidPayments)->sum('amount');
+        $qrisRevenue = (float) (clone $currentPaidPayments)->where('provider', 'qris')->sum('amount');
+        $cashRevenue = (float) (clone $currentPaidPayments)->where('provider', 'cash')->sum('amount');
+        $lifetimePaymentTotals = Payment::query()
+            ->where('status', Payment::STATUS_PAID)
+            ->selectRaw("SUM(CASE WHEN provider = 'qris' THEN amount ELSE 0 END) as qris_total")
+            ->selectRaw("SUM(CASE WHEN provider = 'cash' THEN amount ELSE 0 END) as cash_total")
+            ->first();
+        $qrisRevenueTotal = (float) ($lifetimePaymentTotals->qris_total ?? 0);
+        $cashRevenueTotal = (float) ($lifetimePaymentTotals->cash_total ?? 0);
 
-        $orderCount = Order::where('order_status', Order::STATUS_COMPLETED)
-            ->where('completed_at', '>=', $monthStart)
-            ->count();
+        $orderCount = (clone $currentPaidPayments)->distinct()->count('order_id');
 
-        $orderCountPrev = Order::where('order_status', Order::STATUS_COMPLETED)
-            ->whereBetween('completed_at', [$prevMonthStart, $prevMonthEnd])
-            ->count();
+        $orderCountPrev = (clone $previousPaidPayments)->distinct()->count('order_id');
 
         $avgOrderValue = $orderCount > 0 ? round($grossSales / $orderCount, 2) : 0;
         $avgOrderValuePrev = $orderCountPrev > 0 ? round($grossSalesPrev / $orderCountPrev, 2) : 0;
@@ -45,14 +54,15 @@ class DashboardController extends Controller
 
         $statusDistribution = Order::query()
             ->select('order_status', DB::raw('count(*) as total'))
-            ->where('ordered_at', '>=', $monthStart)
+            ->where('ordered_at', '>=', $todayStart)
+            ->where('ordered_at', '<', $tomorrowStart)
             ->groupBy('order_status')
             ->pluck('total', 'order_status');
 
+        $currentPaidOrderIds = (clone $currentPaidPayments)->select('order_id')->distinct();
         $topProducts = DB::table('order_items')
             ->join('orders', 'orders.id', '=', 'order_items.order_id')
-            ->where('orders.order_status', Order::STATUS_COMPLETED)
-            ->where('orders.completed_at', '>=', $monthStart)
+            ->whereIn('orders.id', $currentPaidOrderIds)
             ->select('order_items.product_name', DB::raw('sum(order_items.quantity) as qty'))
             ->groupBy('order_items.product_name')
             ->orderByDesc('qty')
@@ -62,7 +72,8 @@ class DashboardController extends Controller
         $paymentMix = Payment::query()
             ->join('payment_methods', 'payment_methods.id', '=', 'payments.payment_method_id')
             ->where('payments.status', Payment::STATUS_PAID)
-            ->where('payments.paid_at', '>=', $monthStart)
+            ->where('payments.paid_at', '>=', $todayStart)
+            ->where('payments.paid_at', '<', $tomorrowStart)
             ->select('payment_methods.name', DB::raw('count(*) as count'), DB::raw('sum(payments.amount) as total'))
             ->groupBy('payment_methods.name')
             ->orderByDesc('total')
@@ -70,7 +81,8 @@ class DashboardController extends Controller
             ->get();
 
         $recentOrders = Order::with('table', 'room')
-            ->where('ordered_at', '>=', now()->subDays(7))
+            ->where('ordered_at', '>=', $todayStart)
+            ->where('ordered_at', '<', $tomorrowStart)
             ->orderByDesc('ordered_at')
             ->limit(10)
             ->get();
@@ -83,6 +95,10 @@ class DashboardController extends Controller
         return view('admin.dashboard', compact(
             'grossSales',
             'grossSalesPrev',
+            'qrisRevenue',
+            'cashRevenue',
+            'qrisRevenueTotal',
+            'cashRevenueTotal',
             'orderCount',
             'orderCountPrev',
             'avgOrderValue',

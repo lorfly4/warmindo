@@ -7,6 +7,7 @@ use App\Models\Payment;
 use App\Models\PaymentMethod;
 use App\Models\Product;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class QrisPaymentFeatureTest extends TestCase
@@ -91,6 +92,9 @@ class QrisPaymentFeatureTest extends TestCase
         $this->assertSame(Payment::STATUS_PENDING, $payment->status);
         $this->assertSame((float) $payment->order->grand_total, (float) $payment->amount);
         $this->assertNull($payment->expires_at);
+
+        Storage::fake('public');
+        Storage::disk('public')->put('qriss.jpeg', 'QRIS image');
 
         $this->get(route('payment.qris.pay', $payment))
             ->assertOk()

@@ -9,8 +9,8 @@ use App\Models\Payment;
 use App\Models\PaymentMethod;
 use App\Models\Product;
 use App\PaymentGateway\GatewayManager;
-use App\Services\InventoryService;
 use App\Services\PaymentService;
+use App\Services\ProductStockService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -83,24 +83,19 @@ class OrderLifecycleFeatureTest extends TestCase
         return [$order, $product];
     }
 
-    public function test_ac_08_kitchen_transitions_accepted_cooking_ready(): void
+    public function test_kitchen_board_and_order_transitions_are_unavailable(): void
     {
         $kitchen = $this->kitchenUser();
         [$order] = $this->orderWithProduct();
 
-        $order->update(['order_status' => Order::STATUS_ACCEPTED, 'accepted_at' => now()]);
-
         $this->actingAs($kitchen)
-            ->post(route('kitchen.orders.status', $order), ['action' => 'start_cooking'])
-            ->assertRedirect();
+            ->get('/kitchen')
+            ->assertNotFound();
 
-        $this->assertSame(Order::STATUS_COOKING, $order->fresh()->order_status);
+        $this->post('/kitchen/orders/'.$order->id.'/status', ['action' => 'start_cooking'])
+            ->assertNotFound();
 
-        $this->actingAs($kitchen)
-            ->post(route('kitchen.orders.status', $order), ['action' => 'mark_ready'])
-            ->assertRedirect();
-
-        $this->assertSame(Order::STATUS_READY, $order->fresh()->order_status);
+        $this->assertSame(Order::STATUS_NEW, $order->fresh()->order_status);
     }
 
     public function test_kitchen_cannot_mark_ready_directly_from_new(): void
@@ -109,12 +104,11 @@ class OrderLifecycleFeatureTest extends TestCase
         [$order] = $this->orderWithProduct();
 
         $this->actingAs($kitchen)
-            ->post(route('kitchen.orders.status', $order), ['action' => 'mark_ready'])
-            ->assertRedirect();
+            ->post('/kitchen/orders/'.$order->id.'/status', ['action' => 'mark_ready'])
+            ->assertNotFound();
 
         $fresh = $order->fresh();
-        $this->assertSame(Order::STATUS_ACCEPTED, $fresh->order_status);
-        $this->assertNotSame(Order::STATUS_READY, $fresh->order_status);
+        $this->assertSame(Order::STATUS_NEW, $fresh->order_status);
     }
 
     public function test_cashier_can_complete_ready_order(): void
@@ -133,6 +127,56 @@ class OrderLifecycleFeatureTest extends TestCase
             ->assertRedirect();
 
         $this->assertSame(Order::STATUS_COMPLETED, $order->fresh()->order_status);
+    }
+
+    public function test_cashier_can_complete_paid_order_without_kitchen_steps(): void
+    {
+        $cashier = $this->cashierUser();
+        [$order] = $this->orderWithProduct();
+        $order->update(['payment_status' => Order::PAYMENT_PAID]);
+
+        $this->actingAs($cashier)
+            ->post(route('cashier.orders.complete', $order))
+            ->assertRedirect();
+
+        $this->assertSame(Order::STATUS_COMPLETED, $order->fresh()->order_status);
+        $this->assertDatabaseHas('order_status_histories', [
+            'order_id' => $order->id,
+            'from_status' => Order::STATUS_NEW,
+            'to_status' => Order::STATUS_COMPLETED,
+            'note' => 'Diselesaikan langsung tanpa melalui dapur.',
+        ]);
+    }
+
+    public function test_cashier_cannot_complete_unpaid_order(): void
+    {
+        $cashier = $this->cashierUser();
+        [$order] = $this->orderWithProduct();
+
+        $this->actingAs($cashier)
+            ->post(route('cashier.orders.complete', $order))
+            ->assertRedirect()
+            ->assertSessionHas('error', 'Order belum lunas — selesaikan pembayaran terlebih dahulu.');
+
+        $this->assertSame(Order::STATUS_NEW, $order->fresh()->order_status);
+    }
+
+    public function test_cashier_dashboard_links_to_transactions_and_order_detail_can_complete(): void
+    {
+        $cashier = $this->cashierUser();
+        [$order] = $this->orderWithProduct();
+        $order->update(['payment_status' => Order::PAYMENT_PAID]);
+
+        $this->actingAs($cashier)
+            ->get(route('cashier.dashboard'))
+            ->assertOk()
+            ->assertSee(route('cashier.orders'))
+            ->assertSee(route('cashier.orders.create'))
+            ->assertDontSee('Antrian Order');
+
+        $this->get(route('cashier.orders.show', $order))
+            ->assertOk()
+            ->assertSee('Selesaikan Langsung');
     }
 
     public function test_ac_09_cancellation_requires_reason_and_records_history(): void
@@ -199,7 +243,7 @@ class OrderLifecycleFeatureTest extends TestCase
             'subtotal' => 15000,
         ]);
 
-        app(InventoryService::class)->decrement($product, 1, OrderItem::class, OrderItem::first()->id);
+        app(ProductStockService::class)->decrement($product, 1, OrderItem::class, OrderItem::first()->id);
 
         $this->assertSame(4, $product->fresh()->stock);
 
@@ -210,7 +254,7 @@ class OrderLifecycleFeatureTest extends TestCase
             ])->assertRedirect();
 
         $this->assertSame(5, $product->fresh()->stock);
-        $this->assertDatabaseHas('inventory_movements', [
+        $this->assertDatabaseHas('product_stock_movements', [
             'product_id' => $product->id,
             'type' => 'REVERSAL',
         ]);
@@ -234,6 +278,89 @@ class OrderLifecycleFeatureTest extends TestCase
         $this->assertSame(100000.0, (float) $payment->amount_received);
         $this->assertSame(50000.0, (float) $payment->change_due);
         $this->assertSame(Order::PAYMENT_PAID, $order->fresh()->payment_status);
+    }
+
+    public function test_cashier_can_edit_and_add_items_before_payment(): void
+    {
+        $cashier = $this->cashierUser();
+        [$order] = $this->orderWithProduct(['sale_price' => 10000]);
+        $existingItem = $order->items()->firstOrFail();
+        $addedProduct = Product::factory()->create([
+            'name' => 'Teh Manis',
+            'sale_price' => 12000,
+            'is_kitchen' => false,
+            'stock_type' => 'limited',
+            'stock' => 10,
+        ]);
+
+        $this->actAsFresh($cashier)
+            ->get(route('cashier.orders.show', $order))
+            ->assertOk()
+            ->assertSee('Simpan Perubahan Order');
+
+        $this->actAsFresh($cashier)
+            ->put(route('cashier.orders.items.update', $order), [
+                'items' => [$existingItem->id => 2],
+                'product_id' => $addedProduct->id,
+                'quantity' => 2,
+            ])
+            ->assertRedirect(route('cashier.orders.show', $order))
+            ->assertSessionHas('success');
+
+        $this->assertDatabaseHas('order_items', [
+            'id' => $existingItem->id,
+            'quantity' => 2,
+            'subtotal' => 20000,
+        ]);
+        $this->assertDatabaseHas('products', [
+            'id' => $addedProduct->id,
+            'stock' => 8,
+        ]);
+        $this->assertDatabaseHas('order_items', [
+            'order_id' => $order->id,
+            'product_id' => $addedProduct->id,
+            'quantity' => 2,
+            'subtotal' => 24000,
+        ]);
+        $this->assertSame('44000.00', $order->fresh()->subtotal);
+        $this->assertSame('46200.00', $order->fresh()->grand_total);
+    }
+
+    public function test_cashier_cannot_edit_order_after_online_payment_starts(): void
+    {
+        $cashier = $this->cashierUser();
+        [$order] = $this->orderWithProduct(['sale_price' => 10000]);
+        $item = $order->items()->firstOrFail();
+        $method = $this->onlineMethod();
+        Payment::create([
+            'order_id' => $order->id,
+            'payment_method_id' => $method->id,
+            'type' => 'online',
+            'status' => Payment::STATUS_PENDING,
+            'amount' => $order->grand_total,
+            'provider' => 'mock',
+        ]);
+        $addedProduct = Product::factory()->create(['stock_type' => 'unlimited', 'stock' => 99]);
+
+        $this->actAsFresh($cashier)
+            ->put(route('cashier.orders.items.update', $order), [
+                'items' => [$item->id => 2],
+                'product_id' => $addedProduct->id,
+                'quantity' => 1,
+            ])
+            ->assertRedirect()
+            ->assertSessionHas('error', 'Order tidak dapat diedit setelah pembayaran dimulai.');
+
+        $this->assertDatabaseHas('order_items', [
+            'id' => $item->id,
+            'quantity' => 1,
+            'subtotal' => 10000,
+        ]);
+        $this->assertDatabaseMissing('order_items', [
+            'order_id' => $order->id,
+            'product_id' => $addedProduct->id,
+        ]);
+        $this->assertSame('10000.00', $order->fresh()->subtotal);
     }
 
     public function test_fr_cas_004_cash_payment_rejects_insufficient_amount(): void

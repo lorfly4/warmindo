@@ -21,14 +21,14 @@ class AuthFeatureTest extends TestCase
         $this->get('/dashboard')->assertRedirect('/login');
     }
 
-    public function test_fr_auth_001_active_staff_can_login_and_redirected_to_role_dashboard(): void
+    public function test_fr_auth_001_active_staff_can_login_and_redirected_to_cashier_dashboard(): void
     {
         $admin = $this->adminUser(['password' => 'Password-1234']);
 
         $this->post('/login', [
             'email' => $admin->email,
             'password' => 'Password-1234',
-        ])->assertRedirect(route('admin.dashboard'));
+        ])->assertRedirect(route('cashier.dashboard'));
 
         $this->assertAuthenticatedAs($admin);
     }
@@ -45,7 +45,7 @@ class AuthFeatureTest extends TestCase
         $this->assertGuest();
     }
 
-    public function test_fr_auth_003_cashier_and_kitchen_are_redirected_to_their_dashboards(): void
+    public function test_fr_auth_003_cashier_and_kitchen_are_redirected_to_cashier_dashboard(): void
     {
         $cashier = $this->cashierUser(['password' => 'Password-1234']);
         $kitchen = $this->kitchenUser(['password' => 'Password-1234']);
@@ -56,7 +56,7 @@ class AuthFeatureTest extends TestCase
         $this->post('/logout');
 
         $this->post('/login', ['email' => $kitchen->email, 'password' => 'Password-1234'])
-            ->assertRedirect(route('kitchen.dashboard'));
+            ->assertRedirect(route('cashier.dashboard'));
     }
 
     public function test_fr_auth_005_failed_login_attempts_are_rate_limited(): void

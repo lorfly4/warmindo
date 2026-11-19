@@ -12,8 +12,8 @@
     <div class="card overflow-hidden">
         <form method="GET" action="{{ route('admin.inventory.movements') }}" class="flex flex-wrap items-end gap-3 border-b border-gray-200 px-5 py-4">
             <div>
-                <label for="product" class="label">Produk</label>
-                <input id="product" type="search" name="product" value="{{ request('product') }}" placeholder="Nama/sku produk..." class="input w-48">
+                <label for="ingredient" class="label">Bahan Baku</label>
+                <input id="ingredient" type="search" name="ingredient" value="{{ request('ingredient') }}" placeholder="Nama/kode bahan..." class="input w-48">
             </div>
             <div>
                 <label for="type" class="label">Tipe</label>
@@ -40,7 +40,7 @@
                 <input id="date" type="date" name="date" value="{{ request('date') }}" class="input w-44">
             </div>
             <button type="submit" class="btn btn-secondary">Filter</button>
-            @if (request()->has('product') || request('type') || request('warehouse') || request('date'))
+            @if (request()->has('ingredient') || request('type') || request('warehouse') || request('date'))
                 <a href="{{ route('admin.inventory.movements') }}" class="btn btn-secondary">Reset</a>
             @endif
         </form>
@@ -50,7 +50,7 @@
                 <thead class="bg-gray-50 text-left text-xs uppercase text-gray-500">
                     <tr>
                         <th class="px-5 py-3 font-medium">Waktu</th>
-                        <th class="px-5 py-3 font-medium">Produk</th>
+                        <th class="px-5 py-3 font-medium">Bahan Baku</th>
                         <th class="px-5 py-3 font-medium">Tipe</th>
                         <th class="px-5 py-3 font-medium">Perubahan</th>
                         <th class="px-5 py-3 font-medium">Stok Akhir</th>
@@ -64,7 +64,7 @@
                     @forelse ($movements as $movement)
                         <tr>
                             <td class="px-5 py-3 text-sm text-gray-600">{{ $movement->created_at?->format('d M Y H:i') }}</td>
-                            <td class="px-5 py-3 text-sm font-medium text-gray-900">{{ $movement->product?->name ?? '#' . $movement->product_id }}</td>
+                            <td class="px-5 py-3 text-sm font-medium text-gray-900">{{ $movement->ingredient?->name ?? '-' }}</td>
                             <td class="px-5 py-3">
                                 @php
                                     $typeMeta = [
@@ -79,14 +79,14 @@
                             </td>
                             <td class="px-5 py-3 text-sm text-gray-700">
                                 @if ($movement->type === 'OUT')
-                                    −{{ $movement->quantity }}
+                                    −{{ $movement->quantity }} {{ $movement->unit }}
                                 @elseif ($movement->type === 'ADJUSTMENT')
-                                    {{ $movement->quantity >= 0 ? '+' : '' }}{{ $movement->quantity }}
+                                    {{ $movement->quantity >= 0 ? '+' : '' }}{{ $movement->quantity }} {{ $movement->unit }}
                                 @else
-                                    +{{ $movement->quantity }}
+                                    +{{ $movement->quantity }} {{ $movement->unit }}
                                 @endif
                             </td>
-                            <td class="px-5 py-3 text-sm text-gray-900">{{ $movement->after }}</td>
+                            <td class="px-5 py-3 text-sm text-gray-900">{{ $movement->after }} {{ $movement->unit }}</td>
                             <td class="px-5 py-3 text-sm text-gray-600">
                                 @if ($movement->type === 'TRANSFER' && $movement->toWarehouse)
                                     {{ $movement->warehouse?->name }} &rarr; {{ $movement->toWarehouse->name }}

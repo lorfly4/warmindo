@@ -5,7 +5,7 @@
 @section('content')
     <div class="mb-6 text-center">
         <h1 class="font-display text-2xl font-semibold text-ink-900">Masuk</h1>
-        <p class="mt-1 text-sm text-ink-500">Akses kasir, dapur, dan manajemen</p>
+        <p class="mt-1 text-sm text-ink-500">Masuk untuk mengakses kasir dan inventori</p>
     </div>
 
     <div class="card p-6">
@@ -37,6 +37,6 @@
     </div>
 
     <p class="mt-4 text-center text-xs text-ink-400">
-        Default: admin@pos.local / kitchen@pos.local / cashier@pos.local — lihat seeder.
+        Akun staf diberikan oleh administrator.
     </p>
 @endsection

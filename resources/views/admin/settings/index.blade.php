@@ -17,7 +17,7 @@
 
     <h1 class="mb-5 text-2xl font-bold text-gray-900">Pengaturan</h1>
 
-    <form method="POST" action="{{ route('admin.settings.update') }}" class="space-y-6">
+    <form method="POST" action="{{ route('admin.settings.update') }}" enctype="multipart/form-data" class="space-y-6">
         @csrf
         @method('PUT')
 
@@ -49,6 +49,37 @@
                 </div>
             </div>
         @endforeach
+
+        <div class="card overflow-hidden">
+            <div class="border-b border-gray-200 px-5 py-4">
+                <h2 class="text-base font-semibold text-gray-900">Identitas & Tema</h2>
+            </div>
+            <div class="grid gap-4 p-5 sm:grid-cols-2">
+                <div>
+                    <label for="admin-primary-color" class="label">Warna utama panel admin</label>
+                    <input id="admin-primary-color" type="color" name="branding[admin_primary_color]" value="{{ old('branding.admin_primary_color', $branding['admin_primary_color']) }}" class="h-11 w-full cursor-pointer rounded-lg border border-gray-300 bg-white p-1">
+                    @error('branding.admin_primary_color')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
+                </div>
+                <div>
+                    <label for="customer-primary-color" class="label">Warna utama web pelanggan</label>
+                    <input id="customer-primary-color" type="color" name="branding[customer_primary_color]" value="{{ old('branding.customer_primary_color', $branding['customer_primary_color']) }}" class="h-11 w-full cursor-pointer rounded-lg border border-gray-300 bg-white p-1">
+                    @error('branding.customer_primary_color')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
+                </div>
+                <div>
+                    <label for="accent-color" class="label">Warna aksen</label>
+                    <input id="accent-color" type="color" name="branding[accent_color]" value="{{ old('branding.accent_color', $branding['accent_color']) }}" class="h-11 w-full cursor-pointer rounded-lg border border-gray-300 bg-white p-1">
+                    @error('branding.accent_color')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
+                </div>
+                <div>
+                    <label for="brand-logo" class="label">Logo bisnis</label>
+                    @if ($branding['logo'])
+                        <img src="{{ route('media.show', ['path' => $branding['logo']]) }}" alt="Logo bisnis" class="mb-2 h-12 max-w-40 object-contain">
+                    @endif
+                    <input id="brand-logo" type="file" name="brand_logo" accept="image/jpeg,image/png,image/webp" class="input">
+                    @error('brand_logo')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
+                </div>
+            </div>
+        </div>
 
         <div class="flex justify-end">
             <button type="submit" class="btn btn-primary">Simpan Pengaturan</button>

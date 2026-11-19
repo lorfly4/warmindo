@@ -42,7 +42,7 @@
                 <label for="image" class="label">Gambar</label>
                 @if ($category->image)
                     <div class="mb-2">
-                        <img src="{{ asset('storage/' . $category->image) }}" alt="{{ $category->name }}" class="h-16 w-16 rounded-lg object-cover">
+                        <img src="{{ route('media.show', ['path' => $category->image]) }}" alt="{{ $category->name }}" class="h-16 w-16 rounded-lg object-cover">
                     </div>
                 @endif
                 <input type="file" name="image" id="image" class="input @error('image') border-red-400 @enderror">

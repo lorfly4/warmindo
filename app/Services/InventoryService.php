@@ -2,156 +2,80 @@
 
 namespace App\Services;
 
+use App\Models\Ingredient;
 use App\Models\InventoryItem;
 use App\Models\InventoryMovement;
-use App\Models\Order;
-use App\Models\OrderItem;
-use App\Models\Product;
 use App\Models\Supplier;
 use App\Models\Warehouse;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
 
 class InventoryService
 {
-    /**
-     * Atomically decrement stock for each order item (FR-CAT-006, BR-010).
-     *
-     * @param  Collection<int, Product>  $products  indexed by id
-     */
-    public function reserve(Order $order, Collection $products): void
+    private const ALLOWED_UNITS = ['pcs', 'kg', 'g', 'ml', 'L'];
+
+    public function adjust(Ingredient $ingredient, int $newStock, ?string $note = null, ?string $actorId = null, ?int $warehouseId = null, string $unit = 'pcs'): void
     {
-        foreach ($order->items as $item) {
-            $product = $products->get($item->product_id);
-
-            if (! $product || ! $product->isLimitedStock()) {
-                continue;
-            }
-
-            $this->decrement($product, $item->quantity, OrderItem::class, $item->id);
-        }
-    }
-
-    /**
-     * Reverse a prior OUT for a cancelled order (BR-010).
-     */
-    public function reverse(Order $order): void
-    {
-        foreach ($order->items as $item) {
-            if (! $item->product_id) {
-                continue;
-            }
-
-            $product = Product::withTrashed()->find($item->product_id);
-
-            if (! $product || ! $product->isLimitedStock()) {
-                continue;
-            }
-
-            $this->increment($product, $item->quantity, Order::class, $order->id);
-        }
-    }
-
-    /**
-     * Decrement using a row-locked atomic update so stock never goes negative (FR-CAT-006).
-     */
-    public function decrement(Product $product, int $quantity, string $refType = 'NONE', ?int $refId = null, ?string $actorId = null): void
-    {
-        $product->refresh();
-
-        $before = (int) $product->stock;
-
-        if ($before < $quantity) {
-            throw new RuntimeException('Stok produk tidak mencukupi untuk '.$product->name);
-        }
-
-        $affected = DB::table('products')
-            ->where('id', $product->id)
-            ->where('stock', '>=', $quantity)
-            ->decrement('stock', $quantity);
-
-        if ($affected === 0) {
-            throw new RuntimeException('Stok produk tidak mencukupi untuk '.$product->name);
-        }
-
-        $after = $before - $quantity;
-
-        $this->movement($product, InventoryMovement::TYPE_OUT, $quantity, $before, $after, $refType, $refId, $actorId);
-
-        $this->decrementDefaultWarehouse($product, $quantity);
-    }
-
-    public function increment(Product $product, int $quantity, string $refType = 'NONE', ?int $refId = null, ?string $actorId = null): void
-    {
-        $product->refresh();
-
-        $before = (int) $product->stock;
-        $after = $before + $quantity;
-
-        $product->increment('stock', $quantity);
-
-        $this->movement($product, InventoryMovement::TYPE_REVERSAL, $quantity, $before, $after, $refType, $refId, $actorId);
-
-        $this->incrementDefaultWarehouse($product, $quantity);
-    }
-
-    public function adjust(Product $product, int $newStock, ?string $note = null, ?string $actorId = null, ?int $warehouseId = null): void
-    {
-        $product->refresh();
+        $this->assertAllowedUnit($unit);
 
         if ($newStock < 0) {
             throw new RuntimeException('Stok tidak boleh negatif');
         }
 
-        $before = (int) $product->stock;
+        $warehouse = Warehouse::find($warehouseId) ?? $this->defaultWarehouse();
+        $item = $this->ensureInventoryItem($warehouse, $ingredient);
+
+        if ($item->quantity > 0 && $item->unit !== $unit) {
+            throw new RuntimeException('Satuan gudang tidak cocok dengan satuan yang dipilih');
+        }
+
+        $before = (int) $item->quantity;
         $delta = $newStock - $before;
 
-        $warehouse = Warehouse::find($warehouseId) ?? $this->defaultWarehouse();
-        $item = $this->ensureInventoryItem($warehouse, $product);
-
-        DB::transaction(function () use ($item, $delta) {
+        DB::transaction(function () use ($item, $delta, $unit) {
             if ($item->quantity + $delta < 0) {
                 throw new RuntimeException('Stok gudang tidak mencukupi');
             }
-            $item->increment('quantity', $delta);
+            $item->update(['quantity' => $item->quantity + $delta, 'unit' => $unit]);
         });
 
-        $product->update(['stock' => $newStock]);
-
-        $this->movement($product, InventoryMovement::TYPE_ADJUSTMENT, $delta, $before, $newStock, 'ADMIN', null, $actorId, $note, $warehouse);
+        $this->movement($ingredient, InventoryMovement::TYPE_ADJUSTMENT, abs($delta), $before, $item->refresh()->quantity, 'ADMIN', null, $actorId, $note, $warehouse, null, null, $item->unit);
     }
 
     /**
      * Record incoming stock from a supplier into a specific warehouse.
      */
     public function stockIn(
-        Product $product,
+        Ingredient $ingredient,
         Warehouse $warehouse,
         int $quantity,
         ?Supplier $supplier = null,
         ?string $note = null,
         ?float $unitCost = null,
         ?string $actorId = null,
+        string $unit = 'pcs',
     ): void {
-        $product->refresh();
+        $this->assertAllowedUnit($unit);
 
-        $before = (int) $product->stock;
-        $item = $this->ensureInventoryItem($warehouse, $product);
-        $itemAfter = $item->quantity + $quantity;
+        $item = $this->ensureInventoryItem($warehouse, $ingredient);
 
-        DB::transaction(function () use ($item, $itemAfter) {
-            $item->update(['quantity' => $itemAfter]);
+        if ($item->quantity > 0 && $item->unit !== $unit) {
+            throw new RuntimeException('Satuan gudang tidak cocok dengan satuan yang dipilih');
+        }
+
+        $before = (int) $item->quantity;
+        $itemAfter = $before + $quantity;
+
+        DB::transaction(function () use ($item, $itemAfter, $unit) {
+            $item->update(['quantity' => $itemAfter, 'unit' => $unit]);
         });
 
-        $product->increment('stock', $quantity);
-
         $this->movement(
-            $product,
+            $ingredient,
             InventoryMovement::TYPE_IN,
             $quantity,
             $before,
-            $before + $quantity,
+            $itemAfter,
             Supplier::class,
             $supplier?->id,
             $actorId,
@@ -159,6 +83,8 @@ class InventoryService
             $warehouse,
             $supplier,
             $unitCost,
+            null,
+            $unit,
         );
     }
 
@@ -166,98 +92,114 @@ class InventoryService
      * Remove stock from a specific warehouse (e.g. damaged, expired, waste).
      */
     public function stockOut(
-        Product $product,
+        Ingredient $ingredient,
         Warehouse $warehouse,
         int $quantity,
         ?string $note = null,
         ?string $actorId = null,
+        string $unit = 'pcs',
     ): void {
-        $product->refresh();
+        $this->assertAllowedUnit($unit);
 
-        $item = $this->getInventoryItem($warehouse, $product);
+        $item = $this->getInventoryItem($warehouse, $ingredient);
 
         if (! $item || $item->quantity < $quantity) {
-            throw new RuntimeException('Stok gudang tidak mencukupi untuk '.$product->name);
+            throw new RuntimeException('Stok gudang tidak mencukupi untuk '.$ingredient->name);
         }
 
-        $before = (int) $product->stock;
+        if ($item->unit !== $unit) {
+            throw new RuntimeException('Satuan gudang tidak cocok dengan satuan yang dipilih');
+        }
 
-        DB::transaction(function () use ($item, $product, $quantity) {
+        $before = (int) $item->quantity;
+        $after = $before - $quantity;
+
+        DB::transaction(function () use ($item, $quantity, $ingredient) {
             $affected = InventoryItem::query()
                 ->whereKey($item->id)
                 ->where('quantity', '>=', $quantity)
                 ->decrement('quantity', $quantity);
 
             if ($affected === 0) {
-                throw new RuntimeException('Stok gudang tidak mencukupi untuk '.$product->name);
-            }
-
-            $affectedProduct = DB::table('products')
-                ->where('id', $product->id)
-                ->where('stock', '>=', $quantity)
-                ->decrement('stock', $quantity);
-
-            if ($affectedProduct === 0) {
-                throw new RuntimeException('Stok produk tidak mencukupi untuk '.$product->name);
+                throw new RuntimeException('Stok gudang tidak mencukupi untuk '.$ingredient->name);
             }
         });
 
         $this->movement(
-            $product,
+            $ingredient,
             InventoryMovement::TYPE_OUT,
             $quantity,
             $before,
-            $before - $quantity,
+            $after,
             'MANUAL',
             null,
             $actorId,
             $note,
             $warehouse,
+            null,
+            null,
+            null,
+            $unit,
         );
     }
 
     /**
-     * Move stock between warehouses. Product total stock is unchanged.
+     * Move ingredient stock between warehouses.
      */
     public function transfer(
-        Product $product,
+        Ingredient $ingredient,
         Warehouse $fromWarehouse,
         Warehouse $toWarehouse,
         int $quantity,
         ?string $note = null,
         ?string $actorId = null,
+        string $unit = 'pcs',
     ): void {
+        $this->assertAllowedUnit($unit);
+
         if ($fromWarehouse->id === $toWarehouse->id) {
             throw new RuntimeException('Gudang asal dan tujuan tidak boleh sama');
         }
 
-        $from = $this->getInventoryItem($fromWarehouse, $product);
+        $from = $this->getInventoryItem($fromWarehouse, $ingredient);
 
         if (! $from || $from->quantity < $quantity) {
-            throw new RuntimeException('Stok gudang asal tidak mencukupi untuk '.$product->name);
+            throw new RuntimeException('Stok gudang asal tidak mencukupi untuk '.$ingredient->name);
         }
 
-        $to = $this->ensureInventoryItem($toWarehouse, $product);
+        if ($from->unit !== $unit) {
+            throw new RuntimeException('Satuan gudang asal tidak cocok dengan satuan yang dipilih');
+        }
 
-        DB::transaction(function () use ($from, $to, $quantity) {
+        $to = $this->ensureInventoryItem($toWarehouse, $ingredient);
+
+        if ($to->quantity > 0 && $to->unit !== $unit) {
+            throw new RuntimeException('Satuan gudang tujuan tidak cocok dengan satuan yang dipilih');
+        }
+
+        if ($to->quantity === 0) {
+            $to->update(['unit' => $unit]);
+        }
+
+        DB::transaction(function () use ($from, $to, $quantity, $ingredient) {
             $affected = InventoryItem::query()
                 ->whereKey($from->id)
                 ->where('quantity', '>=', $quantity)
                 ->decrement('quantity', $quantity);
 
             if ($affected === 0) {
-                throw new RuntimeException('Stok gudang asal tidak mencukupi untuk '.$product->name);
+                throw new RuntimeException('Stok gudang asal tidak mencukupi untuk '.$ingredient->name);
             }
 
             $to->increment('quantity', $quantity);
         });
 
         $this->movement(
-            $product,
+            $ingredient,
             InventoryMovement::TYPE_TRANSFER,
             $quantity,
-            0,
-            0,
+            (int) $from->quantity,
+            (int) $from->quantity - $quantity,
             'TRANSFER',
             null,
             $actorId,
@@ -266,45 +208,22 @@ class InventoryService
             null,
             null,
             $toWarehouse,
+            $unit,
         );
     }
 
-    /**
-     * Map product-level movements to the default warehouse for backward compatibility.
-     */
-    private function decrementDefaultWarehouse(Product $product, int $quantity): void
-    {
-        $this->applyToDefaultWarehouse($product, -$quantity);
-    }
-
-    private function incrementDefaultWarehouse(Product $product, int $quantity): void
-    {
-        $this->applyToDefaultWarehouse($product, $quantity);
-    }
-
-    private function applyToDefaultWarehouse(Product $product, int $delta): void
-    {
-        $warehouse = $this->defaultWarehouse();
-        $item = InventoryItem::firstOrCreate(
-            ['warehouse_id' => $warehouse->id, 'product_id' => $product->id],
-            ['quantity' => 0, 'min_threshold' => 0],
-        );
-
-        $item->update(['quantity' => max(0, $item->quantity + $delta)]);
-    }
-
-    private function ensureInventoryItem(Warehouse $warehouse, Product $product): InventoryItem
+    private function ensureInventoryItem(Warehouse $warehouse, Ingredient $ingredient): InventoryItem
     {
         return InventoryItem::firstOrCreate(
-            ['warehouse_id' => $warehouse->id, 'product_id' => $product->id],
-            ['quantity' => 0, 'min_threshold' => 0],
+            ['warehouse_id' => $warehouse->id, 'ingredient_id' => $ingredient->id],
+            ['quantity' => 0, 'unit' => 'pcs', 'min_threshold' => 0],
         );
     }
 
-    private function getInventoryItem(Warehouse $warehouse, Product $product): ?InventoryItem
+    private function getInventoryItem(Warehouse $warehouse, Ingredient $ingredient): ?InventoryItem
     {
         return InventoryItem::where('warehouse_id', $warehouse->id)
-            ->where('product_id', $product->id)
+            ->where('ingredient_id', $ingredient->id)
             ->first();
     }
 
@@ -319,7 +238,7 @@ class InventoryService
     }
 
     private function movement(
-        Product $product,
+        Ingredient $ingredient,
         string $type,
         int $quantity,
         int $before,
@@ -332,14 +251,16 @@ class InventoryService
         ?Supplier $supplier = null,
         ?float $unitCost = null,
         ?Warehouse $toWarehouse = null,
+        string $unit = 'pcs',
     ): void {
         InventoryMovement::create([
-            'product_id' => $product->id,
+            'ingredient_id' => $ingredient->id,
             'warehouse_id' => $warehouse?->id,
             'to_warehouse_id' => $toWarehouse?->id,
             'supplier_id' => $supplier?->id,
             'type' => $type,
             'quantity' => $quantity,
+            'unit' => $unit,
             'before' => $before,
             'after' => $after,
             'reference_type' => $refType,
@@ -349,5 +270,12 @@ class InventoryService
             'unit_cost' => $unitCost,
             'created_at' => now(),
         ]);
+    }
+
+    private function assertAllowedUnit(string $unit): void
+    {
+        if (! in_array($unit, self::ALLOWED_UNITS, true)) {
+            throw new RuntimeException('Satuan tidak didukung: '.$unit);
+        }
     }
 }

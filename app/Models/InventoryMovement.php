@@ -22,7 +22,7 @@ class InventoryMovement extends Model
     public $timestamps = false;
 
     protected $fillable = [
-        'product_id', 'warehouse_id', 'to_warehouse_id', 'supplier_id', 'type', 'quantity',
+        'ingredient_id', 'warehouse_id', 'to_warehouse_id', 'supplier_id', 'type', 'quantity', 'unit',
         'before', 'after', 'reference_type', 'reference_id', 'actor_id',
         'note', 'unit_cost', 'created_at',
     ];
@@ -38,9 +38,9 @@ class InventoryMovement extends Model
         ];
     }
 
-    public function product()
+    public function ingredient()
     {
-        return $this->belongsTo(Product::class);
+        return $this->belongsTo(Ingredient::class);
     }
 
     public function actor()

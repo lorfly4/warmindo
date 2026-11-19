@@ -10,7 +10,7 @@ class InventoryItem extends Model
     use HasFactory;
 
     protected $fillable = [
-        'warehouse_id', 'product_id', 'quantity', 'min_threshold', 'max_capacity',
+        'warehouse_id', 'ingredient_id', 'quantity', 'unit', 'min_threshold', 'max_capacity',
     ];
 
     protected function casts(): array
@@ -27,9 +27,9 @@ class InventoryItem extends Model
         return $this->belongsTo(Warehouse::class);
     }
 
-    public function product()
+    public function ingredient()
     {
-        return $this->belongsTo(Product::class);
+        return $this->belongsTo(Ingredient::class);
     }
 
     public function isLow(): bool

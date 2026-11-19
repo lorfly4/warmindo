@@ -1,11 +1,15 @@
 <aside class="fixed inset-y-0 left-0 z-40 flex w-64 -translate-x-full flex-col border-r border-night-700 bg-night-900 transition-transform duration-200 lg:translate-x-0" :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full'">
     <div class="flex h-16 items-center gap-2 border-b border-night-700 px-6">
-        <div class="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-brand-400 to-brand-600 text-night-950 shadow-sm">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/>
-            </svg>
-        </div>
-        <span class="flex-1 text-sm font-semibold text-stone-100">{{ config('app.name') }}</span>
+        @if ($brandLogo)
+            <img src="{{ route('media.show', ['path' => $brandLogo]) }}" alt="{{ $siteName }}" class="h-9 w-9 rounded-lg object-contain">
+        @else
+            <div class="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-brand-400 to-brand-600 text-night-950 shadow-sm">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/>
+                </svg>
+            </div>
+        @endif
+        <span class="flex-1 truncate text-sm font-semibold text-stone-100">{{ $siteName }}</span>
         <button type="button" class="rounded-lg p-2 text-stone-300 transition hover:bg-night-800 lg:hidden" aria-label="Tutup menu navigasi" @click="sidebarOpen = false">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
         </button>
@@ -13,17 +17,20 @@
 
     <nav @click="sidebarOpen = false" class="flex-1 space-y-1 overflow-y-auto px-3 py-4">
         @if (auth()->user()->can('order.view'))
-            <a href="{{ route('cashier.dashboard') }}" class="{{ request()->routeIs('cashier.*') ? 'bg-brand-500/15 text-brand-300' : 'bg-night-900 text-stone-100 hover:bg-night-750' }} flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium">
+            <a href="{{ route('cashier.dashboard') }}" class="{{ request()->routeIs('cashier.dashboard') ? 'bg-brand-500/15 text-brand-300' : 'bg-night-900 text-stone-100 hover:bg-night-750' }} flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"/></svg>
                 Kasir
             </a>
-        @endif
-
-        @if (auth()->user()->can('kitchen.view'))
-            <a href="{{ route('kitchen.dashboard') }}" class="{{ request()->routeIs('kitchen.*') ? 'bg-brand-500/15 text-brand-300' : 'bg-night-900 text-stone-100 hover:bg-night-750' }} flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v8m-4-8v8m8-8v8M3 8l9-4 9 4M6 16h12"/></svg>
-                Dapur
+            <a href="{{ route('cashier.orders') }}" class="{{ request()->routeIs('cashier.orders') || request()->routeIs('cashier.history') || request()->routeIs('cashier.orders.show') ? 'bg-brand-500/15 text-brand-300' : 'bg-night-900 text-stone-100 hover:bg-night-750' }} flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
+                Transaksi
             </a>
+            @if (auth()->user()->can('order.create'))
+                <a href="{{ route('cashier.orders.create') }}" class="{{ request()->routeIs('cashier.orders.create') ? 'bg-brand-500/15 text-brand-300' : 'bg-night-900 text-stone-100 hover:bg-night-750' }} flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 5v14m-7-7h14"/></svg>
+                    Buat Transaksi
+                </a>
+            @endif
         @endif
 
         @if (auth()->user()->can('setting.manage'))
@@ -34,9 +41,13 @@
         @endif
 
         @if (auth()->user()->can('catalog.manage'))
-            <a href="{{ route('admin.categories.index') }}" class="{{ request()->routeIs('admin.categories.*') || request()->routeIs('admin.products.*') ? 'bg-brand-500/15 text-brand-300' : 'bg-night-900 text-stone-100 hover:bg-night-750' }} flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium">
+            <a href="{{ route('admin.categories.index') }}" class="{{ request()->routeIs('admin.categories.*') ? 'bg-brand-500/15 text-brand-300' : 'bg-night-900 text-stone-100 hover:bg-night-750' }} flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 10h16M4 14h16M4 18h16"/></svg>
                 Kategori Menu
+            </a>
+            <a href="{{ route('admin.products.index') }}" class="{{ request()->routeIs('admin.products.*') ? 'bg-brand-500/15 text-brand-300' : 'bg-night-900 text-stone-100 hover:bg-night-750' }} flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 7h16l-1 13H5L4 7zm4 0V5a4 4 0 0114 0v2"/></svg>
+                Produk
             </a>
         @endif
 
@@ -55,10 +66,17 @@
             </a>
         @endif
 
-        @if (auth()->user()->can('inventory.update'))
+        @if (auth()->user()->can('inventory.view'))
             <a href="{{ route('admin.inventory.index') }}" class="{{ request()->routeIs('admin.inventory.*') ? 'bg-brand-500/15 text-brand-300' : 'bg-night-900 text-stone-100 hover:bg-night-750' }} flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
                 Inventori
+            </a>
+        @endif
+
+        @if (auth()->user()->can('inventory.update'))
+            <a href="{{ route('admin.ingredients.index') }}" class="{{ request()->routeIs('admin.ingredients.*') ? 'bg-brand-500/15 text-brand-300' : 'bg-night-900 text-stone-100 hover:bg-night-750' }} flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v18m9-9H3m14.5-6.5a9.2 9.2 0 01-11 13 9.2 9.2 0 0113-11z"/></svg>
+                Bahan Baku
             </a>
         @endif
 

@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Category;
+use App\Models\Ingredient;
 use App\Models\Order;
 use App\Models\Product;
 use App\Models\User;
@@ -69,13 +70,25 @@ class PermissionFeatureTest extends TestCase
             ->assertOk();
     }
 
-    public function test_kitchen_can_access_kitchen_board(): void
+    public function test_cashier_can_open_transaction_form_without_customer_menu(): void
     {
-        $kitchen = $this->kitchenUser();
+        $cashier = $this->cashierUser();
 
-        $this->actingAs($kitchen)
-            ->get(route('kitchen.dashboard'))
-            ->assertOk();
+        $this->actingAs($cashier)
+            ->get(route('cashier.dashboard'))
+            ->assertOk()
+            ->assertSee('Buat Transaksi')
+            ->assertSee(route('cashier.orders.create'))
+            ->assertDontSee('/menu');
+
+        $this->get(route('cashier.orders.create'))
+            ->assertOk()
+            ->assertSee('Pilih produk dan jumlah yang dibeli.');
+    }
+
+    public function test_kitchen_board_is_not_available(): void
+    {
+        $this->get('/kitchen')->assertNotFound();
     }
 
     public function test_manager_cannot_manage_users(): void
@@ -184,17 +197,19 @@ class PermissionFeatureTest extends TestCase
     public function test_cashier_cannot_create_adjust_inventory(): void
     {
         $cashier = $this->cashierUser();
-        $product = Product::factory()->create([
-            'stock_type' => 'limited',
-            'stock' => 5,
+        $ingredient = Ingredient::create([
+            'name' => 'Tepung',
+            'is_active' => true,
         ]);
 
         $this->actingAs($cashier)
-            ->post(route('admin.inventory.adjust', $product), [
+            ->post(route('admin.inventory.adjust', $ingredient), [
                 'new_stock' => 10,
             ])->assertForbidden();
 
-        $this->assertSame(5, $product->fresh()->stock);
+        $this->assertDatabaseMissing('inventory_movements', [
+            'ingredient_id' => $ingredient->id,
+        ]);
     }
 
     public function test_reset_password_requires_admin_permission(): void

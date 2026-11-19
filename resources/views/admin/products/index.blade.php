@@ -44,7 +44,7 @@
                     <tr>
                         <td class="px-4 py-3">
                             @if ($product->image)
-                                <img src="{{ asset('storage/' . $product->image) }}" alt="{{ $product->name }}" class="h-12 w-12 rounded-lg object-cover">
+                                <img src="{{ route('media.show', ['path' => $product->image]) }}" alt="{{ $product->name }}" class="h-12 w-12 rounded-lg object-cover">
                             @else
                                 <div class="flex h-12 w-12 items-center justify-center rounded-lg bg-gray-100 text-xs text-gray-400">N/A</div>
                             @endif

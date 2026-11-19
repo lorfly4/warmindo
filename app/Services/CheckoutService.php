@@ -13,7 +13,7 @@ class CheckoutService
 {
     public function __construct(
         protected PricingService $pricing,
-        protected InventoryService $inventory,
+        protected ProductStockService $productStock,
         protected OrderNumberGenerator $orderNumber,
     ) {}
 
@@ -118,7 +118,7 @@ class CheckoutService
                 'created_at' => now(),
             ]);
 
-            $this->inventory->reserve($order, $products);
+            $this->productStock->reserve($order, $products);
 
             OrderCreated::dispatch($order);
 

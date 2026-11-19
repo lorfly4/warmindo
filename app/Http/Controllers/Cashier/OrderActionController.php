@@ -5,11 +5,13 @@ namespace App\Http\Controllers\Cashier;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\CancelOrderRequest;
 use App\Http\Requests\CashConfirmRequest;
+use App\Http\Requests\Cashier\UpdateOrderItemsRequest;
 use App\Http\Requests\CashOnlineRequest;
 use App\Models\Order;
 use App\Models\Payment;
 use App\Models\PaymentMethod;
 use App\Services\AuditLogger;
+use App\Services\CashierOrderEditService;
 use App\Services\OrderStatusService;
 use App\Services\PaymentService;
 use App\Services\SettingsService;
@@ -51,7 +53,7 @@ class OrderActionController extends Controller
         Gate::authorize('order.update_status');
 
         try {
-            $this->status->transition($order, Order::STATUS_COMPLETED, auth()->id());
+            $this->status->completeImmediately($order, auth()->id());
         } catch (\RuntimeException $e) {
             return back()->with('error', $e->getMessage());
         }
@@ -59,6 +61,36 @@ class OrderActionController extends Controller
         $this->audit->log('complete', 'order', 'order', $order->id, [], ['order_status' => 'completed']);
 
         return back()->with('success', "Order {$order->order_number} selesai.");
+    }
+
+    public function updateItems(
+        UpdateOrderItemsRequest $request,
+        Order $order,
+        CashierOrderEditService $orderEditor,
+    ): RedirectResponse {
+        try {
+            $order = $orderEditor->updateUnpaidOrder(
+                $order,
+                $request->validated('items', []),
+                $request->filled('product_id') ? $request->integer('product_id') : null,
+                $request->integer('quantity', 1),
+                auth()->id(),
+            );
+        } catch (\RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        $this->audit->log(
+            'update_items',
+            'order',
+            'order',
+            $order->id,
+            [],
+            ['item_count' => $order->items->count(), 'grand_total' => $order->grand_total],
+            auth()->id(),
+        );
+
+        return redirect()->route('cashier.orders.show', $order)->with('success', 'Item order berhasil diperbarui.');
     }
 
     public function cancel(CancelOrderRequest $request, Order $order): RedirectResponse

@@ -3,12 +3,18 @@
 namespace App\Http\Controllers\Cashier;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Cashier\StoreCashierOrderRequest;
+use App\Models\DiningTable;
 use App\Models\Order;
 use App\Models\PaymentMethod;
-use Illuminate\Http\JsonResponse;
+use App\Models\Product;
+use App\Services\AuditLogger;
+use App\Services\CheckoutService;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\View\View;
+use RuntimeException;
 
 class CashierController extends Controller
 {
@@ -16,64 +22,88 @@ class CashierController extends Controller
     {
         Gate::authorize('order.view');
 
-        $newOrders = Order::with(['items', 'table', 'room', 'area'])
-            ->where('order_status', Order::STATUS_NEW)
-            ->where('payment_status', '!=', Order::PAYMENT_FAILED)
-            ->orderBy('ordered_at')
-            ->get();
-
-        $activeOrders = Order::with(['items', 'table', 'room', 'area'])
-            ->whereIn('order_status', [Order::STATUS_ACCEPTED, Order::STATUS_COOKING])
-            ->orderBy('accepted_at')
-            ->orderBy('ordered_at')
-            ->get();
-
-        $readyOrders = Order::with(['items', 'table', 'room', 'area'])
-            ->where('order_status', Order::STATUS_READY)
-            ->orderBy('ready_at')
-            ->get();
-
-        $methods = PaymentMethod::where('is_active', true)->orderBy('sort_order')->get();
-
-        return view('cashier.dashboard', compact('newOrders', 'activeOrders', 'readyOrders', 'methods'));
-    }
-
-    public function freshness(): JsonResponse
-    {
-        Gate::authorize('order.view');
-
-        $new = Order::query()
-            ->where('order_status', Order::STATUS_NEW)
-            ->where('payment_status', '!=', Order::PAYMENT_FAILED)
-            ->orderBy('ordered_at')
-            ->pluck('payment_status', 'id');
-
-        $active = Order::query()
-            ->whereIn('order_status', [Order::STATUS_ACCEPTED, Order::STATUS_COOKING])
-            ->orderBy('accepted_at')
-            ->orderBy('ordered_at')
-            ->pluck('order_status', 'id');
-
-        $ready = Order::query()
-            ->where('order_status', Order::STATUS_READY)
-            ->orderBy('ready_at')
-            ->pluck('payment_status', 'id');
-
-        $signature = md5(json_encode([$new, $active, $ready]));
-
-        return response()->json(['signature' => $signature]);
+        return view('cashier.dashboard');
     }
 
     public function orders(): View
     {
         Gate::authorize('order.view');
 
-        $orders = Order::with(['items', 'table', 'room', 'area', 'payments'])
-            ->whereNotIn('order_status', [Order::STATUS_COMPLETED, Order::STATUS_CANCELLED])
-            ->orderBy('ordered_at')
-            ->get();
+        $orders = Order::with(['items', 'payments.paymentMethod'])
+            ->orderByDesc('ordered_at')
+            ->orderByDesc('id')
+            ->paginate(25)
+            ->withQueryString();
 
         return view('cashier.orders', compact('orders'));
+    }
+
+    public function create(): View
+    {
+        Gate::authorize('order.create');
+
+        $products = Product::query()
+            ->visible()
+            ->orderBy('name')
+            ->get(['id', 'name', 'sale_price', 'stock_type', 'stock']);
+        $tables = DiningTable::query()
+            ->with('area')
+            ->where('is_active', true)
+            ->where('status', 'available')
+            ->orderBy('table_number')
+            ->get(['id', 'area_id', 'table_number', 'name']);
+
+        return view('cashier.create', compact('products', 'tables'));
+    }
+
+    public function store(
+        StoreCashierOrderRequest $request,
+        CheckoutService $checkout,
+        AuditLogger $audit,
+    ): RedirectResponse {
+        $validated = $request->validated();
+        $table = null;
+
+        if ($validated['order_type'] === Order::TYPE_DINE_IN) {
+            $table = DiningTable::query()
+                ->where('is_active', true)
+                ->where('status', 'available')
+                ->find($validated['table_id']);
+
+            if ($table === null) {
+                return back()->withInput()->withErrors([
+                    'table_id' => 'Meja yang dipilih sudah tidak tersedia. Silakan pilih meja lain.',
+                ]);
+            }
+        }
+
+        $items = collect($validated['product_ids'])
+            ->map(fn (string|int $productId): array => [
+                'product_id' => (int) $productId,
+                'quantity' => (int) $validated['quantities'][$productId],
+            ])
+            ->values()
+            ->all();
+
+        try {
+            $result = $checkout->checkout($items, $validated['order_type'], [
+                'created_by' => $request->user()->id,
+                'table_id' => $table?->id,
+                'area_id' => $table?->area_id,
+            ]);
+        } catch (RuntimeException $exception) {
+            return back()->withInput()->with('error', $exception->getMessage());
+        }
+
+        $order = $result['order'];
+
+        $audit->log('create', 'order', 'order', $order->id, [], [
+            'order_number' => $order->order_number,
+            'grand_total' => $order->grand_total,
+        ], $request->user()->id);
+
+        return redirect()->route('cashier.orders.show', $order)
+            ->with('success', "Transaksi {$order->order_number} berhasil dibuat.");
     }
 
     public function show(Order $order): View
@@ -82,8 +112,12 @@ class CashierController extends Controller
 
         $order->load(['items', 'table', 'room', 'area', 'payments.paymentMethod', 'statusHistories.actor', 'cancellation.actor']);
         $methods = PaymentMethod::where('is_active', true)->orderBy('sort_order')->get();
+        $products = Product::query()
+            ->visible()
+            ->orderBy('name')
+            ->get(['id', 'name', 'sale_price', 'stock_type', 'stock']);
 
-        return view('cashier.order-show', compact('order', 'methods'));
+        return view('cashier.order-show', compact('order', 'methods', 'products'));
     }
 
     public function history(Request $request): View

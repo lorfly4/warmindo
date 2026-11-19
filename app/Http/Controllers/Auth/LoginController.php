@@ -58,15 +58,15 @@ class LoginController extends Controller
     {
         $user = auth()->user();
 
-        if ($user->hasAnyRole(['admin', 'manager'])) {
-            return route('admin.dashboard');
+        if ($user->can('order.view')) {
+            return route('cashier.dashboard');
         }
 
-        if ($user->hasRole('kitchen')) {
-            return route('kitchen.dashboard');
+        if ($user->can('inventory.view')) {
+            return route('admin.inventory.index');
         }
 
-        return route('cashier.dashboard');
+        return route('dashboard');
     }
 
     private function tooManyAttempts(Request $request): bool

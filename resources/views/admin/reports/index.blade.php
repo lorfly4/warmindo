@@ -9,7 +9,7 @@
             <h1 class="text-2xl font-bold text-gray-900">Laporan Penjualan</h1>
             <p class="mt-1 text-sm text-gray-500">
                 Periode {{ ($filters['date_from'] ?? 'Awal') }} s/d {{ ($filters['date_to'] ?? 'Sekarang') }}
-                &middot; {{ $orderCount }} order selesai
+                &middot; {{ $orderCount }} order dibayar
             </p>
         </div>
         <div class="flex flex-wrap gap-2">
@@ -123,7 +123,7 @@
                 <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-100 text-blue-700">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2"/></svg>
                 </span>
-                <p class="text-xs text-gray-500">Order Selesai</p>
+                <p class="text-xs text-gray-500">Order Dibayar</p>
             </div>
             <p class="mt-2 text-lg font-bold text-gray-900">{{ $orderCount }}</p>
         </div>
@@ -153,6 +153,41 @@
                 <p class="text-xs text-gray-500">Metode Teratas</p>
             </div>
             <p class="mt-2 truncate text-lg font-bold text-gray-900">{{ $paymentMix->first()?->name ?? '-' }}</p>
+        </div>
+    </div>
+
+    <div class="mt-6 card overflow-hidden">
+        <div class="border-b border-gray-200 px-5 py-4">
+            <h2 class="text-base font-semibold text-gray-900">Pendapatan per Hari</h2>
+            <p class="mt-1 text-sm text-gray-500">Pendapatan tercatat pada tanggal pembayaran dikonfirmasi.</p>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="table-w">
+                <thead class="bg-gray-50 text-left text-xs uppercase text-gray-500">
+                    <tr>
+                        <th class="px-4 py-3 font-medium">Tanggal</th>
+                        <th class="px-4 py-3 text-right font-medium">Order Dibayar</th>
+                        <th class="px-4 py-3 text-right font-medium">Pendapatan</th>
+                        <th class="px-4 py-3 text-right font-medium">QRIS</th>
+                        <th class="px-4 py-3 text-right font-medium">Tunai</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                    @forelse ($dailySales as $day)
+                        <tr>
+                            <td class="px-4 py-3 text-sm text-gray-700">{{ \Illuminate\Support\Carbon::parse($day->paid_date)->translatedFormat('d M Y') }}</td>
+                            <td class="px-4 py-3 text-right text-sm text-gray-700">{{ $day->order_count }}</td>
+                            <td class="px-4 py-3 text-right text-sm font-semibold text-gray-900">Rp {{ number_format($day->revenue, 0, ',', '.') }}</td>
+                            <td class="px-4 py-3 text-right text-sm text-gray-700">Rp {{ number_format($day->qris_revenue, 0, ',', '.') }}</td>
+                            <td class="px-4 py-3 text-right text-sm text-gray-700">Rp {{ number_format($day->cash_revenue, 0, ',', '.') }}</td>
+                        </tr>
+                    @empty
+                        <tr>
+                            <td colspan="5" class="px-4 py-8 text-center text-sm text-gray-500">Belum ada pembayaran lunas pada periode ini.</td>
+                        </tr>
+                    @endforelse
+                </tbody>
+            </table>
         </div>
     </div>
 

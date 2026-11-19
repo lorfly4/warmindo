@@ -147,7 +147,7 @@
                 <div class="kpi-value positive">Rp {{ number_format($netSales, 0, ',', '.') }}</div>
             </td>
             <td>
-                <div class="kpi-label">Order Selesai</div>
+                <div class="kpi-label">Order Dibayar</div>
                 <div class="kpi-value">{{ $orderCount }}</div>
             </td>
             <td>

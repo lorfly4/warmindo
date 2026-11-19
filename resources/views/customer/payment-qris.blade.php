@@ -20,8 +20,8 @@
                 </div>
 
                 <div class="mx-auto w-fit rounded-xl border border-ink-900/10 bg-white p-4 shadow-sm">
-                    @if (file_exists(public_path('storage/'.$imagePath)))
-                        <img src="{{ asset('storage/'.$imagePath) }}" alt="QRIS {{ config('app.name') }}" class="block h-auto w-auto max-h-64 max-w-64 object-contain">
+                    @if ($imageExists)
+                        <img src="{{ route('media.show', ['path' => $imagePath]) }}" alt="QRIS {{ config('app.name') }}" class="block h-auto w-auto max-h-64 max-w-64 object-contain">
                     @else
                         <div class="flex aspect-square h-64 w-64 items-center justify-center bg-ink-100 text-ink-400">
                             <p class="text-center text-sm">Gambar QRIS tidak tersedia. Hubungi kasir.</p>

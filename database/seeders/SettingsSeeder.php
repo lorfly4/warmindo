@@ -17,7 +17,7 @@ class SettingsSeeder extends Seeder
             ['business.address', '', 'Alamat bisnis', 'general'],
             ['business.phone', '', 'Telepon bisnis', 'general'],
             ['receipt.footer', 'Terima kasih atas kunjungan Anda', 'Footer struk', 'receipt'],
-            ['pricing.tax_rate', '11', 'Tarif pajak (%)', 'pricing'],
+            ['pricing.tax_rate', '0', 'Tarif pajak (%)', 'pricing'],
             ['pricing.service_charge_rate', '5', 'Tarif service charge (%)', 'pricing'],
             ['pricing.pay_later', 'false', 'Izinkan bayar di kasir (pay-later)', 'pricing'],
             ['pricing.rounding', '0.01', 'Aturan pembulatan IDR', 'pricing'],

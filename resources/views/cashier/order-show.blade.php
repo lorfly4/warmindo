@@ -11,6 +11,10 @@
         $remaining = max(0, $order->grand_total - $totalPaid);
         $pendingOnline = $order->payments->first(fn ($p) => $p->type === 'online' && $p->status === \App\Models\Payment::STATUS_PENDING);
         $isOverdueOnline = $pendingOnline && $pendingOnline->expires_at?->lt(now());
+        $hasPaymentInProgress = $order->payments->contains(fn ($payment) => in_array($payment->status, [\App\Models\Payment::STATUS_PENDING, \App\Models\Payment::STATUS_PAID], true));
+        $canEditItems = $order->order_status === \App\Models\Order::STATUS_NEW
+            && $order->payment_status === \App\Models\Order::PAYMENT_PENDING
+            && ! $hasPaymentInProgress;
     @endphp
 
     <div class="mb-5 flex flex-wrap items-center justify-between gap-3">
@@ -32,31 +36,79 @@
         <div class="space-y-6 lg:col-span-2">
             <div class="card overflow-hidden">
                 <div class="border-b border-gray-200 px-5 py-4"><h2 class="text-base font-semibold text-gray-900">Item Pesanan</h2></div>
-                <table class="table-w">
-                    <thead class="bg-gray-50 text-left text-xs uppercase text-gray-500">
-                        <tr>
-                            <th class="px-4 py-3 font-medium">Item</th>
-                            <th class="px-4 py-3 text-right font-medium">Harga</th>
-                            <th class="px-4 py-3 text-right font-medium">Qty</th>
-                            <th class="px-4 py-3 text-right font-medium">Subtotal</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-gray-100">
-                        @foreach ($order->items as $item)
+                @if ($canEditItems)
+                    <form method="POST" action="{{ route('cashier.orders.items.update', $order) }}">
+                        @csrf
+                        @method('PUT')
+                @endif
+                    <table class="table-w">
+                        <thead class="bg-gray-50 text-left text-xs uppercase text-gray-500">
                             <tr>
-                                <td class="px-4 py-3">
-                                    <span class="text-sm font-medium text-gray-900">{{ $item->product_name }}</span>
-                                    @if ($item->notes)
-                                        <p class="text-xs text-gray-500">Catatan: {{ $item->notes }}</p>
-                                    @endif
-                                </td>
-                                <td class="px-4 py-3 text-right text-sm text-gray-600">Rp {{ number_format($item->unit_price, 0, ',', '.') }}</td>
-                                <td class="px-4 py-3 text-right text-sm text-gray-600">{{ $item->quantity }}</td>
-                                <td class="px-4 py-3 text-right text-sm font-medium text-gray-900">Rp {{ number_format($item->subtotal, 0, ',', '.') }}</td>
+                                <th class="px-4 py-3 font-medium">Item</th>
+                                <th class="px-4 py-3 text-right font-medium">Harga</th>
+                                <th class="px-4 py-3 text-right font-medium">Qty</th>
+                                <th class="px-4 py-3 text-right font-medium">Subtotal</th>
                             </tr>
-                        @endforeach
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody class="divide-y divide-gray-100">
+                            @foreach ($order->items as $item)
+                                <tr>
+                                    <td class="px-4 py-3">
+                                        <span class="text-sm font-medium text-gray-900">{{ $item->product_name }}</span>
+                                        @if ($item->notes)
+                                            <p class="text-xs text-gray-500">Catatan: {{ $item->notes }}</p>
+                                        @endif
+                                    </td>
+                                    <td class="px-4 py-3 text-right text-sm text-gray-600">Rp {{ number_format($item->price, 0, ',', '.') }}</td>
+                                    <td class="px-4 py-3 text-right text-sm text-gray-600">
+                                        @if ($canEditItems)
+                                            <input type="number" name="items[{{ $item->id }}]" value="{{ old('items.'.$item->id, $item->quantity) }}" min="0" max="99" class="input w-20 text-right" aria-label="Jumlah {{ $item->product_name }}">
+                                        @else
+                                            {{ $item->quantity }}
+                                        @endif
+                                    </td>
+                                    <td class="px-4 py-3 text-right text-sm font-medium text-gray-900">Rp {{ number_format($item->subtotal, 0, ',', '.') }}</td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                    @if ($canEditItems)
+                        <div class="space-y-3 border-t border-gray-200 px-5 py-4">
+                            <h3 class="text-sm font-semibold text-gray-900">Tambah produk</h3>
+                            @error('items.*')
+                                <p class="text-sm text-red-600">{{ $message }}</p>
+                            @enderror
+                            @error('product_id')
+                                <p class="text-sm text-red-600">{{ $message }}</p>
+                            @enderror
+                            @error('quantity')
+                                <p class="text-sm text-red-600">{{ $message }}</p>
+                            @enderror
+                            <div class="grid gap-3 sm:grid-cols-[1fr_6rem]">
+                                <div>
+                                    <label for="product_id" class="label">Produk</label>
+                                    <select id="product_id" name="product_id" class="select">
+                                        <option value="">Tidak menambah produk</option>
+                                        @foreach ($products as $product)
+                                            @php $soldOut = $product->stock_type === 'limited' && $product->stock < 1; @endphp
+                                            <option value="{{ $product->id }}" {{ old('product_id') == $product->id ? 'selected' : '' }} {{ $soldOut ? 'disabled' : '' }}>
+                                                {{ $product->name }} — Rp {{ number_format($product->sale_price, 0, ',', '.') }}{{ $soldOut ? ' (Habis)' : '' }}
+                                            </option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                                <div>
+                                    <label for="quantity" class="label">Jumlah</label>
+                                    <input id="quantity" type="number" name="quantity" value="{{ old('quantity', 1) }}" min="1" max="99" class="input">
+                                </div>
+                            </div>
+                            <p class="text-xs text-gray-500">Isi jumlah item yang sudah ada untuk mengubahnya; isi 0 untuk menghapus. Total akan dihitung ulang saat disimpan.</p>
+                            <button type="submit" class="btn btn-primary">Simpan Perubahan Order</button>
+                        </div>
+                    @endif
+                @if ($canEditItems)
+                    </form>
+                @endif
                 <div class="space-y-1 border-t border-gray-200 px-5 py-4">
                     <p class="flex justify-between text-sm text-gray-600"><span>Subtotal</span><span>Rp {{ number_format($order->subtotal, 0, ',', '.') }}</span></p>
                     @if ($order->discount_amount > 0)
@@ -184,15 +236,15 @@
                             @csrf
                             <button type="submit" class="btn btn-primary">Terima Order</button>
                         </form>
+                    @endif
+
+                    @if ($order->payment_status === \App\Models\Order::PAYMENT_PAID && ! in_array($order->order_status, [\App\Models\Order::STATUS_COMPLETED, \App\Models\Order::STATUS_CANCELLED], true))
+                        <form method="POST" action="{{ route('cashier.orders.complete', $order) }}">
+                            @csrf
+                            <button type="submit" class="btn btn-success">Selesaikan Langsung</button>
+                        </form>
                     @elseif ($order->order_status === \App\Models\Order::STATUS_READY)
-                        @if ($order->payment_status === \App\Models\Order::PAYMENT_PAID)
-                            <form method="POST" action="{{ route('cashier.orders.complete', $order) }}">
-                                @csrf
-                                <button type="submit" class="btn btn-success">Selesaikan Order</button>
-                            </form>
-                        @else
-                            <p class="text-sm text-amber-600">Order belum lunas — selesaikan pembayaran terlebih dahulu.</p>
-                        @endif
+                        <p class="text-sm text-amber-600">Order belum lunas — selesaikan pembayaran terlebih dahulu.</p>
                     @endif
 
                     @if ($order->payment_status === \App\Models\Order::PAYMENT_PAID)

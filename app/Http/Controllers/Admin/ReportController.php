@@ -39,6 +39,7 @@ class ReportController extends Controller
 
         $aggregates = $this->aggregates($filters);
         $paymentMix = $this->paymentMix($filters);
+        $dailySales = $this->dailySales($filters);
 
         $areas = Area::orderBy('name')->get();
         $cashiers = User::query()->role(['admin', 'manager', 'cashier'])->orderBy('name')->get();
@@ -47,6 +48,7 @@ class ReportController extends Controller
         return view('admin.reports.index', array_merge($aggregates, [
             'orders' => $orders,
             'paymentMix' => $paymentMix,
+            'dailySales' => $dailySales,
             'areas' => $areas,
             'cashiers' => $cashiers,
             'paymentMethods' => $paymentMethods,
@@ -119,7 +121,7 @@ class ReportController extends Controller
         $sheet->setCellValue('A3', 'Dicetak: '.now()->format('d/m/Y H:i').' — '.auth()->user()?->name ?? '-');
         $sheet->getStyle('A2:A3')->getFont()->setSize(10);
 
-        $labels = ['Penjualan Kotor', 'Refund', 'Penjualan Bersih', 'Order Selesai', 'Dibatalkan', 'Rata-rata Order'];
+        $labels = ['Penjualan Kotor', 'Refund', 'Penjualan Bersih', 'Order Dibayar', 'Dibatalkan', 'Rata-rata Order'];
         $values = [$aggregates['grossSales'], $aggregates['refundTotal'], $aggregates['netSales'], $aggregates['orderCount'], $aggregates['cancelledCount'], $aggregates['avgOrderValue']];
 
         foreach ($labels as $i => $label) {
@@ -284,12 +286,13 @@ class ReportController extends Controller
     private function aggregates(array $filters): array
     {
         $base = $this->baseQuery($filters);
+        $paidPayments = $this->paidPaymentsQuery($filters);
 
-        $grossSales = (float) (clone $base)->where('order_status', Order::STATUS_COMPLETED)->sum('grand_total');
+        $grossSales = (float) (clone $paidPayments)->sum('payments.amount');
         $refundTotal = $this->refundTotal($filters);
         $netSales = round($grossSales - $refundTotal, 2);
 
-        $orderCount = (clone $base)->where('order_status', Order::STATUS_COMPLETED)->count();
+        $orderCount = (clone $paidPayments)->distinct()->count('orders.id');
         $cancelledCount = (clone $base)->where('order_status', Order::STATUS_CANCELLED)->count();
 
         $avgOrderValue = $orderCount > 0 ? round($grossSales / $orderCount, 2) : 0;
@@ -299,9 +302,10 @@ class ReportController extends Controller
             ->groupBy('order_status')
             ->pluck('total', 'order_status');
 
-        $topProducts = (clone $base)
-            ->where('orders.order_status', Order::STATUS_COMPLETED)
-            ->join('order_items', 'order_items.order_id', '=', 'orders.id')
+        $paidOrderIds = (clone $paidPayments)->select('orders.id')->distinct();
+        $topProducts = DB::table('order_items')
+            ->join('orders', 'orders.id', '=', 'order_items.order_id')
+            ->whereIn('orders.id', $paidOrderIds)
             ->select('order_items.product_name', DB::raw('sum(order_items.quantity) as qty'), DB::raw('sum(order_items.subtotal) as revenue'))
             ->groupBy('order_items.product_name')
             ->orderByDesc('qty')
@@ -309,6 +313,39 @@ class ReportController extends Controller
             ->get();
 
         return compact('grossSales', 'refundTotal', 'netSales', 'orderCount', 'cancelledCount', 'avgOrderValue', 'statusDistribution', 'topProducts');
+    }
+
+    private function dailySales(array $filters)
+    {
+        return $this->paidPaymentsQuery($filters)
+            ->selectRaw('DATE(payments.paid_at) as paid_date')
+            ->selectRaw('SUM(payments.amount) as revenue')
+            ->selectRaw("SUM(CASE WHEN payments.provider = 'qris' THEN payments.amount ELSE 0 END) as qris_revenue")
+            ->selectRaw("SUM(CASE WHEN payments.provider = 'cash' THEN payments.amount ELSE 0 END) as cash_revenue")
+            ->selectRaw('COUNT(DISTINCT orders.id) as order_count')
+            ->groupByRaw('DATE(payments.paid_at)')
+            ->orderByDesc('paid_date')
+            ->get();
+    }
+
+    private function paidPaymentsQuery(array $filters)
+    {
+        return Payment::query()
+            ->join('orders', 'orders.id', '=', 'payments.order_id')
+            ->where('payments.status', Payment::STATUS_PAID)
+            ->when($filters['search'], fn ($q, $s) => $q->where(function ($query) use ($s) {
+                $query->where('orders.order_number', 'like', "%{$s}%")
+                    ->orWhere('orders.customer_name', 'like', "%{$s}%")
+                    ->orWhere('orders.customer_phone', 'like', "%{$s}%")
+                    ->orWhere('orders.notes', 'like', "%{$s}%");
+            }))
+            ->when($filters['date_from'], fn ($q, $v) => $q->whereDate('payments.paid_at', '>=', $v))
+            ->when($filters['date_to'], fn ($q, $v) => $q->whereDate('payments.paid_at', '<=', $v))
+            ->when($filters['area_id'], fn ($q, $v) => $q->where('orders.area_id', $v))
+            ->when($filters['order_type'], fn ($q, $v) => $q->where('orders.order_type', $v))
+            ->when($filters['status'], fn ($q, $v) => $q->where('orders.order_status', $v))
+            ->when($filters['cashier_id'], fn ($q, $v) => $q->where('orders.created_by', $v))
+            ->when($filters['payment_method_id'], fn ($q, $v) => $q->where('payments.payment_method_id', $v));
     }
 
     private function refundTotal(array $filters): float

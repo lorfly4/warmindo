@@ -4,11 +4,14 @@ namespace Tests\Feature;
 
 use App\Models\Category;
 use App\Models\Discount;
+use App\Models\Ingredient;
 use App\Models\Order;
 use App\Models\Product;
+use App\Models\Warehouse;
 use App\Services\InventoryService;
 use App\Services\OrderStatusService;
 use App\Services\PricingService;
+use App\Services\ProductStockService;
 use App\Services\SettingsService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Collection;
@@ -221,32 +224,31 @@ class PricingDiscountInventoryTest extends TestCase
             'stock' => 1,
         ]);
 
-        app(InventoryService::class)->decrement($product, 1);
+        app(ProductStockService::class)->decrement($product, 1);
 
         $this->assertSame(0, $product->fresh()->stock);
 
         $this->expectException(\RuntimeException::class);
 
-        app(InventoryService::class)->decrement($product, 1);
+        app(ProductStockService::class)->decrement($product, 1);
 
         $this->assertSame(0, $product->fresh()->stock);
     }
 
     public function test_inventory_adjustment_records_movement(): void
     {
-        $product = Product::factory()->create([
-            'stock_type' => 'limited',
-            'stock' => 10,
-        ]);
+        $ingredient = Ingredient::create(['name' => 'Cabai', 'is_active' => true]);
+        $warehouse = Warehouse::factory()->create();
 
-        app(InventoryService::class)->adjust($product, 25, 'Stock opname');
+        app(InventoryService::class)->adjust($ingredient, 25, 'Stock opname', warehouseId: $warehouse->id, unit: 'kg');
 
-        $this->assertSame(25, $product->fresh()->stock);
+        $this->assertSame(25, $warehouse->inventoryItems()->where('ingredient_id', $ingredient->id)->first()->quantity);
         $this->assertDatabaseHas('inventory_movements', [
-            'product_id' => $product->id,
+            'ingredient_id' => $ingredient->id,
             'type' => 'ADJUSTMENT',
-            'before' => 10,
+            'before' => 0,
             'after' => 25,
+            'unit' => 'kg',
         ]);
     }
 

@@ -28,7 +28,7 @@
                     <div class="flex h-full flex-col items-center justify-center text-center text-ink-500">
                         <svg xmlns="http://www.w3.org/2000/svg" class="mb-3 h-12 w-12 text-ink-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/></svg>
                         <p class="text-sm">Keranjang masih kosong.</p>
-                        <a href="{{ route('menu.index') }}" class="link-subtle mt-3 text-sm font-medium">Lihat menu</a>
+                        <a href="{{ route('menu.order') }}" class="link-subtle mt-3 text-sm font-medium">Lihat menu</a>
                     </div>
                 @else
                     <ul class="space-y-5">
@@ -36,7 +36,7 @@
                             <li class="flex items-start gap-3" data-cart-line-row="{{ $line['product_id'] }}">
                                 <div class="media-frame h-16 w-16 shrink-0">
                                     @if ($line['image'])
-                                        <img src="{{ asset('storage/'.$line['image']) }}" alt="{{ $line['product_name'] }}" class="h-full w-full object-cover">
+                                        <img src="{{ route('media.show', ['path' => $line['image']]) }}" alt="{{ $line['product_name'] }}" class="h-full w-full object-cover">
                                     @else
                                         <div class="flex h-full w-full items-center justify-center text-ink-300">
                                             <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>

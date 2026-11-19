@@ -35,9 +35,9 @@ class Product extends Model
         return $this->belongsTo(Category::class);
     }
 
-    public function inventoryMovements()
+    public function stockMovements()
     {
-        return $this->hasMany(InventoryMovement::class);
+        return $this->hasMany(ProductStockMovement::class);
     }
 
     public function scopeVisible(Builder $query): Builder

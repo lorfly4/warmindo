@@ -14,7 +14,7 @@ use RuntimeException;
 class OrderStatusService
 {
     public function __construct(
-        protected InventoryService $inventory,
+        protected ProductStockService $productStock,
         protected RefundService $refunds,
     ) {}
 
@@ -26,6 +26,46 @@ class OrderStatusService
     public function canTransition(Order $order, string $to): bool
     {
         return in_array($to, $this->allowedTransitions($order->order_status), true);
+    }
+
+    public function completeImmediately(Order $order, ?int $actorId = null): Order
+    {
+        return DB::transaction(function () use ($order, $actorId) {
+            $order = Order::query()->lockForUpdate()->findOrFail($order->getKey());
+
+            if (! in_array($order->order_status, [
+                Order::STATUS_NEW,
+                Order::STATUS_ACCEPTED,
+                Order::STATUS_COOKING,
+                Order::STATUS_READY,
+            ], true)) {
+                throw new RuntimeException('Order tidak dapat diselesaikan pada status ini.');
+            }
+
+            if ($order->payment_status !== Order::PAYMENT_PAID) {
+                throw new RuntimeException('Order belum lunas — selesaikan pembayaran terlebih dahulu.');
+            }
+
+            $from = $order->order_status;
+            $order->update([
+                'order_status' => Order::STATUS_COMPLETED,
+                'completed_at' => now(),
+            ]);
+
+            OrderStatusHistory::create([
+                'order_id' => $order->id,
+                'from_status' => $from,
+                'to_status' => Order::STATUS_COMPLETED,
+                'actor_id' => $actorId,
+                'note' => 'Diselesaikan langsung tanpa melalui dapur.',
+                'created_at' => now(),
+            ]);
+
+            $completedOrder = $order->fresh();
+            OrderStatusUpdated::dispatch($completedOrder);
+
+            return $completedOrder;
+        });
     }
 
     /**
@@ -69,7 +109,7 @@ class OrderStatusService
                     'created_at' => now(),
                 ]);
 
-                $this->inventory->reverse($order);
+                $this->productStock->reverse($order);
 
                 $this->refundSettledPayments($order, $actorId);
             }

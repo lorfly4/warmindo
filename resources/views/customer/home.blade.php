@@ -6,7 +6,7 @@
 
 @php
     $heroImage = $heroImages->first();
-    $heroImageUrl = $heroImage ? asset('storage/'.$heroImage) : null;
+    $heroImageUrl = $heroImage ? route('media.show', ['path' => $heroImage]) : null;
 @endphp
 
 @section('hero')
@@ -126,7 +126,7 @@
                             </span>
                             <div class="media-frame hidden h-24 w-36 shrink-0 sm:block">
                                 @if ($product->image)
-                                    <img src="{{ asset('storage/'.$product->image) }}" alt="{{ $product->name }}" loading="lazy" class="h-full w-full object-cover">
+                                    <img src="{{ route('media.show', ['path' => $product->image]) }}" alt="{{ $product->name }}" loading="lazy" class="h-full w-full object-cover">
                                 @else
                                     <div class="flex h-full w-full items-center justify-center text-ink-300">
                                         <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
@@ -213,7 +213,7 @@
                     <div class="relative min-h-72 lg:min-h-full">
                         <div class="absolute inset-0 bg-gradient-to-br from-forest-800 to-forest-950">
                             @if ($heroImages->count() > 1)
-                                <img src="{{ asset('storage/'.$heroImages[1]) }}" alt="{{ $siteName }}" loading="lazy" class="h-full w-full object-cover opacity-80">
+                                <img src="{{ route('media.show', ['path' => $heroImages[1]]) }}" alt="{{ $siteName }}" loading="lazy" class="h-full w-full object-cover opacity-80">
                             @endif
                         </div>
                         <span class="absolute bottom-0 left-0 h-1 w-full bg-gradient-to-r from-gold-500/0 via-gold-500/70 to-gold-500/0"></span>

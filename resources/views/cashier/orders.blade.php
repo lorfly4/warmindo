@@ -1,18 +1,16 @@
 @extends('layouts.app')
 
-@section('title', 'Semua Order - Kasir - '.config('app.name'))
-@section('header', 'Semua Order Aktif')
+@section('title', 'Transaksi - Kasir - '.config('app.name'))
+@section('header', 'Transaksi')
 
 @section('content')
-    @php
-        $typeLabels = ['dine_in' => 'Dine In', 'take_away' => 'Take Away', 'room_service' => 'Room Service'];
-    @endphp
-
     <div class="mb-5 flex items-center justify-between">
-        <h1 class="text-2xl font-bold text-gray-900">Semua Order Aktif</h1>
+        <h1 class="text-2xl font-bold text-gray-900">Daftar Transaksi</h1>
         <div class="flex gap-2">
-            <button type="button" class="btn btn-primary" onclick="window.location.reload()">Muat Ulang</button>
-            <a href="{{ route('cashier.dashboard') }}" class="btn btn-secondary">Dashboard</a>
+            <a href="{{ route('cashier.history') }}" class="btn btn-secondary">Riwayat</a>
+            @can('order.create')
+                <a href="{{ route('cashier.orders.create') }}" class="btn btn-primary">Buat Transaksi</a>
+            @endcan
         </div>
     </div>
 
@@ -23,7 +21,7 @@
                     <tr>
                         <th class="px-4 py-3 font-medium">Order</th>
                         <th class="px-4 py-3 font-medium">Waktu</th>
-                        <th class="px-4 py-3 font-medium">Tipe / Lokasi</th>
+                        <th class="px-4 py-3 font-medium">Produk Dibeli</th>
                         <th class="px-4 py-3 font-medium">Status</th>
                         <th class="px-4 py-3 font-medium">Pembayaran</th>
                         <th class="px-4 py-3 text-right font-medium">Total</th>
@@ -35,13 +33,15 @@
                         <tr>
                             <td class="px-4 py-3 text-sm font-medium text-gray-900">{{ $order->order_number }}</td>
                             <td class="px-4 py-3 text-sm text-gray-600">{{ $order->ordered_at?->format('d M H:i') }}</td>
-                            <td class="px-4 py-3 text-sm text-gray-600">{{ $typeLabels[$order->order_type] ?? $order->order_type }} @if ($order->area) · {{ $order->locationLabel() }} @endif</td>
+                            <td class="px-4 py-3 text-sm text-gray-600">
+                                {{ $order->items->map(fn ($item) => $item->product_name.' × '.$item->quantity)->join(', ') }}
+                            </td>
                             <td class="px-4 py-3"><span class="badge bg-blue-100 text-blue-700">{{ \App\Models\Order::$flowLabels[$order->order_status] ?? $order->order_status }}</span></td>
                             <td class="px-4 py-3">
-                                @if ($order->payments()->where('status', \App\Models\Payment::STATUS_PAID)->exists())
+                                @if ($order->payments->contains(fn ($payment) => $payment->status === \App\Models\Payment::STATUS_PAID))
                                     <span class="badge bg-emerald-100 text-emerald-700">Lunas</span>
                                 @else
-                                    <span class="badge bg-amber-100 text-amber-700">Belum Bayar</span>
+                                    <span class="badge bg-amber-100 text-amber-700">{{ $order->payment_status === \App\Models\Order::PAYMENT_PENDING ? 'Belum Bayar' : $order->payment_status }}</span>
                                 @endif
                             </td>
                             <td class="px-4 py-3 text-right text-sm font-semibold text-gray-900">Rp {{ number_format($order->grand_total, 0, ',', '.') }}</td>
@@ -49,7 +49,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="7" class="px-4 py-10 text-center text-sm text-gray-500">Tidak ada order aktif.</td>
+                            <td colspan="7" class="px-4 py-10 text-center text-sm text-gray-500">Belum ada transaksi.</td>
                         </tr>
                     @endforelse
                 </tbody>
@@ -57,12 +57,5 @@
         </div>
     </div>
 
-    @push('scripts')
-        <script>
-            window.startBoardPolling({
-                url: @json(route('cashier.dashboard.freshness')),
-                interval: 15000,
-            });
-        </script>
-    @endpush
+    <div class="mt-4">{{ $orders->links() }}</div>
 @endsection
