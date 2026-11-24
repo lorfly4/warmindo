@@ -5,9 +5,29 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Struk {{ $order->order_number }}</title>
     <script>
-        window.addEventListener('DOMContentLoaded', () => setTimeout(() => window.print(), 250));
+        // Tunggu DOM + font siap sebelum print, supaya font tebal tidak telat dimuat
+        window.addEventListener('DOMContentLoaded', () => {
+            const go = () => setTimeout(() => window.print(), 250);
+            if (document.fonts && document.fonts.ready) {
+                document.fonts.ready.then(go);
+            } else {
+                go();
+            }
+        });
     </script>
     <style>
+        /* Font tebal untuk thermal. Taruh file di: public/fonts/JetBrainsMono-ExtraBold.woff2
+           Lebar karakter JetBrains Mono = 0.6em, sama dengan hitungan 32 karakter/baris. */
+        @font-face {
+            font-family: 'ReceiptMono';
+            src: local('JetBrains Mono ExtraBold'),
+                 local('JetBrainsMono-ExtraBold'),
+                 url('{{ asset('fonts/JetBrainsMono-ExtraBold.woff2') }}') format('woff2');
+            font-weight: 800;
+            font-style: normal;
+            font-display: block;
+        }
+
         /* Kertas thermal 58mm. Lebar area cetak = 58mm - 2 x 4mm = 50mm */
         @page { size: 58mm auto; margin: 6mm 4mm; }
 
@@ -18,16 +38,21 @@
         html, body { margin: 0; padding: 0; }
 
         body {
-            font-family: 'Courier New', Courier, monospace;
-            /* Ukuran huruf dihitung agar muat tepat 32 karakter per baris di 50mm
-               (huruf monospace lebarnya 0.6em => 50mm / (32 x 0.6) ), sama seperti
-               printer thermal 58mm pada foto. */
+            font-family: 'ReceiptMono', 'JetBrains Mono', 'Roboto Mono', 'Courier New', monospace;
+            /* Muat tepat 32 karakter per baris di 50mm
+               (monospace 0.6em => 50mm / (32 x 0.6) = 50mm / 19.2) */
             font-size: calc(var(--content) / 19.2);
             line-height: 1.4;
-            font-weight: 400; /* ubah ke 700 jika hasil cetak terlalu tipis */
+            font-weight: 800;
             color: #000;
             width: 100%;
             max-width: var(--content);
+
+            /* Menebalkan goresan agar tidak pudar di thermal.
+               Naikkan ke 0.4px jika masih kurang gelap. */
+            -webkit-text-stroke: 0.25px #000;
+            -webkit-font-smoothing: none;
+            text-rendering: geometricPrecision;
         }
 
         p { margin: 0; }
@@ -35,9 +60,9 @@
         .center { text-align: center; }
         .wrap { overflow-wrap: anywhere; }
 
-        /* Garis putus-putus setinggi satu baris teks */
+        /* Garis putus-putus tebal */
         .break {
-            border-top: 1px dashed #000;
+            border-top: 2px dashed #000;
             margin: 0.6em 0;
         }
 
