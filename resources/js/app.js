@@ -22,3 +22,25 @@ if (window.EchoEnabled) {
         console.warn('Echo not available:', error);
     }
 }
+
+
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+        navigator.serviceWorker
+            .register('/sw.js', {
+                scope: '/'
+            })
+            .then((registration) => {
+                console.log(
+                    'Warmindo PWA berhasil didaftarkan:',
+                    registration.scope
+                );
+            })
+            .catch((error) => {
+                console.error(
+                    'Warmindo PWA gagal:',
+                    error
+                );
+            });
+    });
+}

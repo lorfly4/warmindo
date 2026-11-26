@@ -1,0 +1,66 @@
+
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#172554">
+    <title>Offline - Warmindo</title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #f8fafc;
+            font-family: Arial, sans-serif;
+            text-align: center;
+            padding: 24px;
+        }
+
+        .container {
+            max-width: 400px;
+        }
+
+        h1 {
+            color: #172554;
+            font-size: 26px;
+        }
+
+        p {
+            color: #64748b;
+            line-height: 1.6;
+        }
+
+        button {
+            background: #172554;
+            color: white;
+            border: none;
+            padding: 13px 24px;
+            border-radius: 10px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Koneksi Terputus</h1>
+
+        <p>
+            Kamu sedang offline.
+            Silakan periksa koneksi internet
+            dan coba kembali.
+        </p>
+
+        <button onclick="location.reload()">
+            Coba Lagi
+        </button>
+    </div>
+</body>
+</html>
