@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Ingredient;
 use App\Models\Product;
+use App\Models\Supplier;
 use App\Models\Warehouse;
 use App\Services\InventoryService;
 use App\Services\ProductStockService;
@@ -28,6 +29,21 @@ class WarehouseInventoryFeatureTest extends TestCase
 
         $this->assertSame(5, $product->fresh()->stock);
         $this->assertSame(10, $warehouse->inventoryItems()->where('ingredient_id', $ingredient->id)->first()->quantity);
+    }
+
+    public function test_movement_history_displays_supplier_name_for_class_reference(): void
+    {
+        $this->seedStaffRolesAndSettings();
+
+        $supplier = Supplier::create(['name' => 'Supplier Berkah']);
+        $ingredient = Ingredient::create(['name' => 'Cabai', 'is_active' => true]);
+        $warehouse = Warehouse::create(['name' => 'Gudang Uji', 'slug' => 'gudang-uji']);
+        app(InventoryService::class)->stockIn($ingredient, $warehouse, 10, $supplier);
+
+        $this->actingAs($this->adminUser())
+            ->get(route('admin.inventory.movements'))
+            ->assertOk()
+            ->assertSeeText('Supplier Berkah');
     }
 
     public function test_stock_out_only_updates_warehouse_stock_not_product_stock(): void

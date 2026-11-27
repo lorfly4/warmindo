@@ -95,8 +95,8 @@
                                 @endif
                             </td>
                             <td class="px-5 py-3 text-sm text-gray-600">
-                                @if ($movement->reference_type === 'Supplier' && $movement->supplier)
-                                    {{ $movement->supplier->name }}
+                                @if (in_array($movement->reference_type, ['Supplier', \App\Models\Supplier::class], true))
+                                    {{ $movement->supplier?->name ?? 'SUPPLIER #'.$movement->reference_id }}
                                 @elseif ($movement->reference_type !== 'NONE')
                                     {{ strtoupper($movement->reference_type) }} #{{ $movement->reference_id ?? '' }}
                                 @else
