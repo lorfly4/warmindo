@@ -163,6 +163,38 @@ class PaymentService
         });
     }
 
+    public function confirmQrisForOrder(Order $order, PaymentMethod $method, ?int $cashierId = null): Payment
+    {
+        if ($method->type !== 'online' || $method->code !== 'qris') {
+            throw new RuntimeException('Metode pembayaran bukan QRIS.');
+        }
+
+        return DB::transaction(function () use ($order, $method, $cashierId) {
+            $order = Order::query()->lockForUpdate()->findOrFail($order->id);
+            $this->assertSettlable($order);
+
+            $amount = (float) $order->grand_total;
+            $payment = Payment::create([
+                'order_id' => $order->id,
+                'payment_method_id' => $method->id,
+                'type' => 'online',
+                'status' => Payment::STATUS_PAID,
+                'amount' => $amount,
+                'amount_received' => $amount,
+                'change_due' => 0,
+                'provider' => 'qris',
+                'created_by' => $cashierId ?? auth()->id() ?: $order->created_by,
+                'paid_at' => now(),
+            ]);
+
+            $order->update(['payment_status' => Order::PAYMENT_PAID]);
+
+            PaymentSettled::dispatch($payment->fresh());
+
+            return $payment->fresh();
+        });
+    }
+
     public function failOnline(Payment $payment, ?string $failureCode = null): Payment
     {
         return DB::transaction(function () use ($payment, $failureCode) {

@@ -129,10 +129,23 @@ class OrderActionController extends Controller
             return back()->with('error', 'Metode tersebut bukan pembayaran online.');
         }
 
-        $amount = $method->code === 'qris' ? (float) $request->amount : null;
+        if ($method->code === 'qris') {
+            try {
+                $payment = $this->payments->confirmQrisForOrder($order, $method, auth()->id());
+            } catch (\RuntimeException $e) {
+                return back()->with('error', $e->getMessage());
+            }
+
+            $this->audit->log('pay_qris', 'payment', 'order', $order->id, [], [
+                'payment' => $payment->id,
+                'amount' => $payment->amount,
+            ]);
+
+            return redirect()->route('cashier.receipt.show', $order)->with('success', 'Pembayaran QRIS berhasil dicatat.');
+        }
 
         try {
-            $payment = $this->payments->createOnlineAttempt($order, $method, 'order-'.$order->id.'-attempt-'.now()->format('YmdHis'), $amount);
+            $payment = $this->payments->createOnlineAttempt($order, $method, 'order-'.$order->id.'-attempt-'.now()->format('YmdHis'));
             $initiate = $this->payments->gateway($payment)->initiate($payment);
         } catch (\RuntimeException $e) {
             return back()->with('error', $e->getMessage());

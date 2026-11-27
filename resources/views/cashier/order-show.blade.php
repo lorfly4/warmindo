@@ -164,66 +164,88 @@
                         <div class="mt-4 rounded bg-red-50 px-3 py-2 text-xs text-red-700">Pembayaran online telah kadaluarsa. Minta bayar ulang di kasir.</div>
                     @endif
 
-                    <form method="POST" action="{{ route('cashier.orders.pay-cash', $order) }}" id="pay-cash-{{ $order->id }}" class="mt-4 space-y-3" x-data="{ open: false, amount: '{{ $remaining }}' }">
-                        @csrf
-                        <div>
-                            <label class="label">Metode Tunai</label>
-                            <select name="payment_method_id" class="select" required>
-                                @foreach ($methods->where('type', 'cash') as $method)
-                                    <option value="{{ $method->id }}">{{ $method->name }}</option>
-                                @endforeach
-                            </select>
-                        </div>
-                        <div>
-                            <label class="label">Jumlah Diterima</label>
-                            <input type="number" name="amount_received" x-model="amount" min="{{ $remaining }}" step="0.01" class="input" required>
-                        </div>
-                        <button type="button" @click="open = true" class="btn btn-success w-full">Bayar Tunai (Rp <span x-text="Number(amount).toLocaleString('id-ID')"></span>)</button>
-
-<template x-teleport="body">
-                            <div x-show="open" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" @keydown.escape.window="open = false">
-                                <div class="w-full max-w-md rounded-lg border border-night-600 bg-night-900 p-6 shadow-2xl" @click.outside="open = false">
-                                    <h3 class="text-base font-semibold text-stone-100">Konfirmasi Bayar Tunai</h3>
-                                    <p class="mt-2 text-sm text-stone-400">Total: Rp {{ number_format($order->grand_total, 0, ',', '.') }} — Diterima: Rp <span x-text="Number(amount).toLocaleString('id-ID')"></span></p>
-                                    <p class="mt-1 text-sm text-stone-400">Kembalian: <span class="font-bold text-emerald-400" x-text="'Rp ' + Math.max(0, Number(amount) - {{ $order->grand_total }}).toLocaleString('id-ID')"></span></p>
-                                    <div class="mt-4 flex justify-end gap-2">
-                                        <button type="button" @click="open = false" class="btn btn-secondary">Tutup</button>
-                                        <button type="submit" form="pay-cash-{{ $order->id }}" class="btn btn-success">Konfirmasi</button>
-                                    </div>
-                                </div>
-                            </div>
-                        </template>
-                    </form>
-
-                    @if ($methods->where('type', 'online')->isNotEmpty())
-                        <form method="POST" action="{{ route('cashier.orders.pay-online', $order) }}" class="mt-3 space-y-3">
-                            @csrf
+                    @if ($methods->isNotEmpty())
+                        <div class="mt-4 space-y-3" x-data="{
+                            selectedMethodId: @js((string) $methods->first()->id),
+                            selectedMethodType: @js($methods->first()->type),
+                            selectedMethodCode: @js($methods->first()->code),
+                            open: false,
+                            amount: @js((string) $remaining)
+                        }">
                             <div>
-                                <label class="label">Bayar Online</label>
-                                <select name="payment_method_id" class="select" x-data="{ onlineCode: '' }"
-                                        @change="onlineCode = $event.target.selectedOptions[0].dataset.code" required>
-                                    @foreach ($methods->where('type', 'online') as $method)
-                                        <option value="{{ $method->id }}" data-code="{{ $method->code }}">{{ $method->name }}</option>
-                                    @endforeach
+                                <label for="cashier-payment-method" class="label">Metode Pembayaran</label>
+                                <select id="cashier-payment-method" class="select"
+                                        @change="
+                                            selectedMethodId = $event.target.value;
+                                            selectedMethodType = $event.target.selectedOptions[0].dataset.type;
+                                            selectedMethodCode = $event.target.selectedOptions[0].dataset.code;
+                                            open = false;
+                                        ">
+                                    @if ($methods->where('type', 'cash')->isNotEmpty())
+                                        <optgroup label="Tunai">
+                                            @foreach ($methods->where('type', 'cash') as $method)
+                                                <option value="{{ $method->id }}" data-type="{{ $method->type }}" data-code="{{ $method->code }}" @selected($method->id === $methods->first()->id)>{{ $method->name }}</option>
+                                            @endforeach
+                                        </optgroup>
+                                    @endif
+                                    @if ($methods->where('type', 'online')->isNotEmpty())
+                                        <optgroup label="Online">
+                                            @foreach ($methods->where('type', 'online') as $method)
+                                                <option value="{{ $method->id }}" data-type="{{ $method->type }}" data-code="{{ $method->code }}" @selected($method->id === $methods->first()->id)>{{ $method->name }}</option>
+                                            @endforeach
+                                        </optgroup>
+                                    @endif
                                 </select>
                             </div>
-                            <div x-show="onlineCode === 'qris'" x-cloak>
-                                <label class="label">Nominal QRIS</label>
-                                <input type="number" name="amount" min="0" step="0.01" value="{{ $remaining }}"
-                                       class="input" placeholder="Nominal yang dibayar pelanggan">
-                                <p class="mt-1 text-xs text-gray-500">Nominal tampil di halaman QRIS pelanggan.</p>
-                            </div>
-                            <button type="submit" class="btn btn-primary w-full">Minta Bayar Online</button>
-                            <p class="text-xs text-gray-500">Pelanggan akan diarahkan ke halaman pembayaran untuk melunasi sisa.</p>
-                        </form>
 
-                        @if ($pendingOnline && $pendingOnline->provider === 'qris')
-                            <form method="POST" action="{{ route('cashier.orders.qris-confirm', $order) }}" class="mt-3">
+                            <form method="POST" action="{{ route('cashier.orders.pay-cash', $order) }}" id="pay-cash-{{ $order->id }}" class="space-y-3" x-show="selectedMethodType === 'cash'" x-cloak>
                                 @csrf
-                                <button type="submit" class="btn btn-success w-full">Konfirmasi Terima QRIS (Rp {{ number_format($pendingOnline->amount, 0, ',', '.') }})</button>
+                                <input type="hidden" name="payment_method_id" :value="selectedMethodId">
+                                <div>
+                                    <label class="label">Jumlah Diterima</label>
+                                    <input type="number" name="amount_received" x-model="amount" min="{{ $remaining }}" step="0.01" class="input" required>
+                                </div>
+                                <button type="button" @click="open = true" class="btn btn-success w-full">Bayar Tunai (Rp <span x-text="Number(amount).toLocaleString('id-ID')"></span>)</button>
+
+                                <template x-teleport="body">
+                                    <div x-show="open" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" @keydown.escape.window="open = false">
+                                        <div class="w-full max-w-md rounded-lg border border-night-600 bg-night-900 p-6 shadow-2xl" @click.outside="open = false">
+                                            <h3 class="text-base font-semibold text-stone-100">Konfirmasi Bayar Tunai</h3>
+                                            <p class="mt-2 text-sm text-stone-400">Total: Rp {{ number_format($order->grand_total, 0, ',', '.') }} — Diterima: Rp <span x-text="Number(amount).toLocaleString('id-ID')"></span></p>
+                                            <p class="mt-1 text-sm text-stone-400">Kembalian: <span class="font-bold text-emerald-400" x-text="'Rp ' + Math.max(0, Number(amount) - {{ $order->grand_total }}).toLocaleString('id-ID')"></span></p>
+                                            <div class="mt-4 flex justify-end gap-2">
+                                                <button type="button" @click="open = false" class="btn btn-secondary">Tutup</button>
+                                                <button type="submit" form="pay-cash-{{ $order->id }}" class="btn btn-success">Konfirmasi</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </template>
                             </form>
-                            <a href="{{ route('payment.qris.pay', $pendingOnline) }}" target="_blank" rel="noopener" class="btn btn-secondary mt-2 w-full">Tampilkan QRIS</a>
-                        @endif
+
+                            <form method="POST" action="{{ route('cashier.orders.pay-online', $order) }}" class="space-y-3" x-show="selectedMethodType === 'online' && selectedMethodCode === 'qris'" x-cloak>
+                                @csrf
+                                <input type="hidden" name="payment_method_id" :value="selectedMethodId">
+                                <button type="submit" class="btn btn-success w-full">Bayar QRIS (Rp {{ number_format($remaining, 0, ',', '.') }})</button>
+                                <p class="text-xs text-gray-500">Pastikan pembayaran QRIS sudah diterima sebelum menekan tombol.</p>
+                            </form>
+
+                            <form method="POST" action="{{ route('cashier.orders.pay-online', $order) }}" class="space-y-3" x-show="selectedMethodType === 'online' && selectedMethodCode !== 'qris'" x-cloak>
+                                @csrf
+                                <input type="hidden" name="payment_method_id" :value="selectedMethodId">
+                                <button type="submit" class="btn btn-primary w-full">Minta Bayar Online</button>
+                                <p class="text-xs text-gray-500">Pelanggan akan diarahkan ke halaman pembayaran untuk melunasi sisa.</p>
+                            </form>
+                        </div>
+                    @else
+                        <p class="mt-4 text-sm text-red-600">Belum ada metode pembayaran yang aktif.</p>
+                    @endif
+
+                    @if ($pendingOnline && $pendingOnline->provider === 'qris')
+                        <form method="POST" action="{{ route('cashier.orders.qris-confirm', $order) }}" class="mt-3">
+                            @csrf
+                            <button type="submit" class="btn btn-success w-full">Konfirmasi Terima QRIS (Rp {{ number_format($pendingOnline->amount, 0, ',', '.') }})</button>
+                        </form>
+                        <a href="{{ route('payment.qris.pay', $pendingOnline) }}" target="_blank" rel="noopener" class="btn btn-secondary mt-2 w-full">Tampilkan QRIS</a>
                     @endif
                 @endif
             </div>

@@ -106,6 +106,34 @@ class ReportExportFeatureTest extends TestCase
                 && (float) $dailySales->first()->qris_revenue === 0.0);
     }
 
+    public function test_cashier_qris_payment_is_recorded_in_qris_revenue(): void
+    {
+        $order = Order::factory()->takeAway()->create([
+            'grand_total' => 75000,
+        ]);
+        $method = PaymentMethod::factory()->create([
+            'name' => 'QRIS',
+            'code' => 'qris',
+            'type' => 'online',
+        ]);
+
+        $this->actAsFresh($this->cashierUser())
+            ->post(route('cashier.orders.pay-online', $order), [
+                'payment_method_id' => $method->id,
+            ])
+            ->assertRedirect(route('cashier.receipt.show', $order));
+
+        $this->admin()->get(route('admin.reports.index', [
+            'date_from' => now()->toDateString(),
+            'date_to' => now()->toDateString(),
+        ]))
+            ->assertOk()
+            ->assertViewHas('dailySales', fn ($dailySales) => $dailySales->count() === 1
+                && (float) $dailySales->first()->revenue === 75000.0
+                && (float) $dailySales->first()->qris_revenue === 75000.0
+                && (float) $dailySales->first()->cash_revenue === 0.0);
+    }
+
     public function test_report_pdf_is_printable(): void
     {
         $this->completedOrder(75000, 0);

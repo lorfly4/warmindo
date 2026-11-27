@@ -103,26 +103,51 @@ class QrisPaymentFeatureTest extends TestCase
             ->assertSee('storage/qriss.jpeg');
     }
 
-    public function test_cashier_sets_qris_nominal_when_requesting_payment(): void
+    public function test_cashier_qris_button_records_a_paid_payment_without_gateway_redirect(): void
     {
         $method = $this->qrisMethod();
-        $this->product(['sale_price' => 50000]);
-        $this->addToCart(Product::firstOrFail()->id);
-
-        $order = $this->orderWithoutPayment();
+        $order = Order::factory()->takeAway()->create(['grand_total' => 50000]);
 
         $this->actAsFresh($this->cashierUser())
             ->post(route('cashier.orders.pay-online', $order), [
                 'payment_method_id' => $method->id,
-                'amount' => 35000,
             ])
-            ->assertRedirect(route('payment.qris.pay', $order->payments()->firstOrFail()));
+            ->assertRedirect(route('cashier.receipt.show', $order))
+            ->assertSessionHas('success', 'Pembayaran QRIS berhasil dicatat.');
 
         $payment = $order->payments()->firstOrFail();
 
         $this->assertSame('qris', $payment->provider);
-        $this->assertSame(35000.0, (float) $payment->amount);
+        $this->assertSame(Payment::STATUS_PAID, $payment->status);
+        $this->assertSame(50000.0, (float) $payment->amount);
+        $this->assertSame(50000.0, (float) $payment->amount_received);
+        $this->assertNotNull($payment->paid_at);
         $this->assertSame('qris', $payment->paymentMethod->code);
+        $this->assertSame(Order::PAYMENT_PAID, $order->fresh()->payment_status);
+    }
+
+    public function test_cashier_order_payment_shows_cash_and_online_methods_in_one_selector(): void
+    {
+        $cashMethod = PaymentMethod::factory()->create([
+            'name' => 'Tunai Kasir',
+            'code' => 'cash',
+            'type' => 'cash',
+            'sort_order' => 1,
+        ]);
+        $onlineMethod = $this->qrisMethod();
+        $order = Order::factory()->takeAway()->create(['grand_total' => 50000]);
+
+        $response = $this->actAsFresh($this->cashierUser())
+            ->get(route('cashier.orders.show', $order));
+
+        $response
+            ->assertSee('id="cashier-payment-method"', false)
+            ->assertSee('Metode Pembayaran')
+            ->assertSee('value="'.$cashMethod->id.'" data-type="cash" data-code="cash"', false)
+            ->assertSee('value="'.$onlineMethod->id.'" data-type="online" data-code="qris"', false)
+            ->assertSee('Bayar QRIS')
+            ->assertDontSee('Nominal QRIS')
+            ->assertDontSee('Metode Tunai');
     }
 
     public function test_cashier_qris_nominal_ignored_for_non_qris_method(): void
